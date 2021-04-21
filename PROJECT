@@ -1,0 +1,7 @@
+domain: cluster.x-k8s.io
+repo: github.com/mrajashree/etcdadm-controller
+resources:
+- group: etcdcluster
+  kind: EtcdCluster
+  version: v1alpha4
+version: "2"
