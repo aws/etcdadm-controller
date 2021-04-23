@@ -33,7 +33,7 @@ spec:
         - /manager
         args:
         - --enable-leader-election
-        image: controller:latest
+        image: ${ETCDADM_CONTROLLER_IMAGE}
         name: manager
         resources:
           limits:

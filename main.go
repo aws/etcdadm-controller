@@ -18,7 +18,9 @@ package main
 
 import (
 	"flag"
+	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha4"
 	"os"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -40,6 +42,8 @@ func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
 	_ = etcdclusterv1alpha4.AddToScheme(scheme)
+	_ = clusterv1.AddToScheme(scheme)
+	_ = etcdbp.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 

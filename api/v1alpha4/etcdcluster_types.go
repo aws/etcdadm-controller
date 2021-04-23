@@ -22,6 +22,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	EtcdCertsGeneratedCondition string = "EtcdCertsGenerated"
+)
+
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
@@ -44,14 +48,31 @@ type EtcdClusterStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Total number of non-terminated machines targeted by this control plane
+	// Total number of non-terminated machines targeted by this etcd cluster
 	// (their labels match the selector).
 	// +optional
-	Replicas int32 `json:"replicas,omitempty"`
+	ReadyReplicas int32 `json:"replicas,omitempty"`
+
+	// +optional
+	InitMachineAddress string `json:"initMachineAddress"`
+
+	// +optional
+	Initialized bool `json:"initialized"`
+
+	// +optional
+	Ready bool `json:"ready"`
+
+	// Selector is the label selector in string format to avoid introspection
+	// by clients, and is used to provide the CRD-based integration for the
+	// scale subresource and additional integrations for things like kubectl
+	// describe.. The string will be in the same format as the query-param syntax.
+	// More info about label selectors: http://kubernetes.io/docs/user-guide/labels#label-selectors
+	// +optional
+	Selector string `json:"selector,omitempty"`
 }
 
 // +kubebuilder:object:root=true
-
+// +kubebuilder:subresource:status
 // EtcdCluster is the Schema for the etcdclusters API
 type EtcdCluster struct {
 	metav1.TypeMeta   `json:",inline"`

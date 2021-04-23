@@ -1,0 +1,15 @@
+{
+  "name": "etcdadm-controller",
+  "config": {
+    "image": "mrajashree/etcdadm-controller:latest",
+    "live_reload_deps": [
+      "main.go",
+      "go.mod",
+      "go.sum",
+      "api",
+      "controllers",
+      "pkg",
+      "exp"
+    ]
+  }
+}

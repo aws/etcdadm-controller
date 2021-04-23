@@ -68,8 +68,8 @@ func TestAPIs(t *testing.T) {
 //	close(done)
 //}, 60)
 
-var _ = AfterSuite(func() {
-	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
-})
+//var _ = AfterSuite(func() {
+//	By("tearing down the test environment")
+//	err := testEnv.Stop()
+//	Expect(err).ToNot(HaveOccurred())
+//})
