@@ -446,8 +446,8 @@ github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742/go.mod h1:bx2lN
 github.com/modern-go/reflect2 v1.0.1 h1:9f412s+6RmYXLWZSEzVVgPGK7C2PphHj5RJrvfx9AWI=
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00/go.mod h1:Pm3mSP3c5uWn86xMLZ5Sa7JB9GsEZySvHYXCTK4E9q4=
-github.com/mrajashree/cluster-api v0.3.11-0.20210423184405-86ec2ba62332 h1:dvWTVr+HqqbmsvHGwkDz0n9MMreDoZ0vTe5T+kbuiLI=
-github.com/mrajashree/cluster-api v0.3.11-0.20210423184405-86ec2ba62332/go.mod h1:UlBKgiQwcVusfGoS+47AEj2c4yDqiomuZZ+xgw/xDoY=
+github.com/mrajashree/cluster-api v0.3.11-0.20210426220346-18c42c47d024 h1:SpqPH4q7IKtW41/8cf3vRnClFIbonyqmUp0IHfCtw7A=
+github.com/mrajashree/cluster-api v0.3.11-0.20210426220346-18c42c47d024/go.mod h1:UlBKgiQwcVusfGoS+47AEj2c4yDqiomuZZ+xgw/xDoY=
 github.com/mrajashree/etcdadm-bootstrap-provider v0.0.0 h1:YBv7Omv+GOVCxRP6NQOIS1q4h16vBvHDqypsukLSskg=
 github.com/mrajashree/etcdadm-bootstrap-provider v0.0.0/go.mod h1:0xuhr9Mug7U+3BWqJmet4QAQ9A114dyD1QC/FRWHA4I=
 github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=

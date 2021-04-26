@@ -62,6 +62,9 @@ type EtcdClusterStatus struct {
 	// +optional
 	Ready bool `json:"ready"`
 
+	// +optional
+	Endpoint string `json:"endpoint"`
+
 	// Selector is the label selector in string format to avoid introspection
 	// by clients, and is used to provide the CRD-based integration for the
 	// scale subresource and additional integrations for things like kubectl

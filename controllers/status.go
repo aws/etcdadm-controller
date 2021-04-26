@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
 	"github.com/pkg/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
@@ -34,13 +35,24 @@ func (r *EtcdClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.Etc
 	}
 
 	if ec.Status.ReadyReplicas == desiredReplicas {
+		var endpoint string
 		for _, m := range ownedMachines {
 			if len(m.Status.Addresses) == 0 {
 				return nil
 			}
+			for _, address := range m.Status.Addresses {
+				// TODO: check for DNS address type
+				if address.Type == clusterv1.MachineInternalIP {
+					if endpoint != "" {
+						endpoint += ","
+					}
+					endpoint += fmt.Sprintf("https://%s:2379", address.Address)
+				}
+			}
 		}
 		// etcd ready when all machines have address set
 		ec.Status.Ready = true
+		ec.Status.Endpoint = endpoint
 	}
 	return nil
 }

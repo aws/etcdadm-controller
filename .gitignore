@@ -22,3 +22,9 @@ bin
 *.swp
 *.swo
 *~
+.DS_Store
+
+# User-supplied Tiltfile extensions, settings, and builds
+tilt.d
+tilt-settings.json
+.tiltbuild
