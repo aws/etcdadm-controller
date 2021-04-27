@@ -40,6 +40,7 @@ type EtcdClusterSpec struct {
 	// offered by an infrastructure provider.
 	InfrastructureTemplate corev1.ObjectReference `json:"infrastructureTemplate"`
 
+	// +optional
 	EtcdadmConfigSpec etcdbp.EtcdadmConfigSpec `json:"etcdadmConfigSpec"`
 }
 

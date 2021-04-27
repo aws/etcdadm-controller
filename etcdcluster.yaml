@@ -4,8 +4,8 @@ metadata:
   name: "etcd-cluster"
   namespace: default
 spec:
-  etcdadmConfigSpec:
-    foo: bar
+#  etcdadmConfigSpec:
+#    foo: bar
   replicas: 3
   infrastructureTemplate:
     kind: DockerMachineTemplate

@@ -85,12 +85,13 @@ spec:
               format: int32
               type: integer
           required:
-          - etcdadmConfigSpec
           - infrastructureTemplate
           type: object
         status:
           description: EtcdClusterStatus defines the observed state of EtcdCluster
           properties:
+            endpoint:
+              type: string
             initMachineAddress:
               type: string
             initialized:

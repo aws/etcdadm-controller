@@ -2,11 +2,15 @@ package controllers
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
 	"github.com/pkg/errors"
+	"net/http"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/util/collections"
+	"strings"
 )
 
 func (r *EtcdClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdCluster, cluster *clusterv1.Cluster) error {
@@ -50,9 +54,53 @@ func (r *EtcdClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.Etc
 				}
 			}
 		}
+		if err := r.doEtcdHealthCheck(ctx, cluster, endpoint); err != nil {
+			return err
+		}
 		// etcd ready when all machines have address set
 		ec.Status.Ready = true
 		ec.Status.Endpoint = endpoint
+	}
+	return nil
+}
+
+func (r *EtcdClusterReconciler) doEtcdHealthCheck(ctx context.Context, cluster *clusterv1.Cluster, endpoints string) error {
+	caCertPool := x509.NewCertPool()
+	caCert, err := r.getCACert(ctx, cluster)
+	if err != nil {
+		return err
+	}
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	clientCert, err := r.getClientCerts(ctx, cluster)
+	if err != nil {
+		return errors.Wrap(err, "Error getting client cert for healthcheck")
+	}
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:      caCertPool,
+				Certificates: []tls.Certificate{clientCert},
+			},
+		},
+	}
+
+	for _, endpoint := range strings.Split(endpoints, ",") {
+		req, err := http.NewRequest("GET", endpoint+"/health", nil)
+		if err != nil {
+			return err
+		}
+		req.Close = true
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return errors.Wrap(err, "error checking etcd member health")
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return errors.Wrap(err, "error member not ready, retry")
+		}
+		r.Log.Info(fmt.Sprintf("Etcd member %v ready", endpoint+"/health"))
 	}
 	return nil
 }

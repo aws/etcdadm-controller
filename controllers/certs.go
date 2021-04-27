@@ -2,10 +2,12 @@ package controllers
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	certutil "k8s.io/client-go/util/cert"
@@ -98,4 +100,30 @@ func etcdCACertKeyPair() secret.Certificates {
 	}
 
 	return certificates
+}
+
+func (r *EtcdClusterReconciler) getCACert(ctx context.Context, cluster *clusterv1.Cluster) ([]byte, error) {
+	caCert := &secret.Certificates{
+		&secret.Certificate{
+			Purpose: secret.ManagedExternalEtcdCA,
+		},
+	}
+	if err := caCert.Lookup(ctx, r.Client, util.ObjectKey(cluster)); err != nil {
+		return []byte{}, errors.Wrap(err, "error looking up external etcd CA certs")
+	}
+	caCertKey := caCert.GetByPurpose(secret.ManagedExternalEtcdCA)
+	return caCertKey.KeyPair.Cert, nil
+}
+
+func (r *EtcdClusterReconciler) getClientCerts(ctx context.Context, cluster *clusterv1.Cluster) (tls.Certificate, error) {
+	clientCert := &secret.Certificates{
+		&secret.Certificate{
+			Purpose: secret.APIServerEtcdClient,
+		},
+	}
+	if err := clientCert.Lookup(ctx, r.Client, util.ObjectKey(cluster)); err != nil {
+		return tls.Certificate{}, err
+	}
+	clientCertKey := clientCert.GetByPurpose(secret.APIServerEtcdClient)
+	return tls.X509KeyPair(clientCertKey.KeyPair.Cert, clientCertKey.KeyPair.Key)
 }
