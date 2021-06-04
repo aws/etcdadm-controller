@@ -4,10 +4,13 @@ go 1.16
 
 require (
 	github.com/go-logr/logr v0.4.0
-	github.com/mrajashree/etcdadm-bootstrap-provider v0.0.0
+	github.com/mrajashree/etcdadm-bootstrap-provider v0.0.1-0.20210507212529-2b13cddb5812
 	github.com/onsi/ginkgo v1.15.2
 	github.com/onsi/gomega v1.11.0
 	github.com/pkg/errors v0.9.1
+	go.etcd.io/etcd/api/v3 v3.5.0-beta.4 // indirect
+	go.etcd.io/etcd/client/v3 v3.5.0-beta.4 // indirect
+	go.etcd.io/etcd/v3 v3.5.0-alpha.0.0.20210603110301-edcfe575cfe4
 	k8s.io/api v0.21.0-beta.1
 	k8s.io/apimachinery v0.21.0-beta.1
 	k8s.io/apiserver v0.21.0-beta.1

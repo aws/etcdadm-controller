@@ -28,3 +28,6 @@ bin
 tilt.d
 tilt-settings.json
 .tiltbuild
+
+./templates
+templates

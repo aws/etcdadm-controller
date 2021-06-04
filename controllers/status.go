@@ -10,12 +10,13 @@ import (
 	"net/http"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/util/collections"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"strings"
 )
 
 func (r *EtcdClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdCluster, cluster *clusterv1.Cluster) error {
-	//log := ctrl.LoggerFrom(ctx, "cluster", cluster.Name)
-
+	log := ctrl.LoggerFrom(ctx, "cluster", cluster.Name)
+	log.Info("update status is called")
 	selector := collections.EtcdPlaneSelectorForCluster(cluster.Name)
 	// Copy label selector to its status counterpart in string format.
 	// This is necessary for CRDs including scale subresources.
@@ -26,6 +27,10 @@ func (r *EtcdClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.Etc
 		return errors.Wrap(err, "Error filtering machines for etcd cluster")
 	}
 	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(ec))
+	log.Info("following machines owned by this etcd cluster:")
+	for _, machine := range ownedMachines {
+		fmt.Printf("%s ", machine.Name)
+	}
 
 	desiredReplicas := *ec.Spec.Replicas
 
@@ -44,16 +49,29 @@ func (r *EtcdClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.Etc
 			if len(m.Status.Addresses) == 0 {
 				return nil
 			}
+			var foundAddress bool
+			// TODO: save endpoint on the EtcdadmConfig status object
 			for _, address := range m.Status.Addresses {
-				// TODO: check for DNS address type
-				if address.Type == clusterv1.MachineInternalIP {
+				if address.Type == clusterv1.MachineInternalIP || address.Type == clusterv1.MachineInternalDNS {
 					if endpoint != "" {
 						endpoint += ","
 					}
 					endpoint += fmt.Sprintf("https://%s:2379", address.Address)
+					foundAddress = true
+				}
+			}
+			for _, address := range m.Status.Addresses {
+				if !foundAddress {
+					if address.Type == clusterv1.MachineExternalIP || address.Type == clusterv1.MachineExternalDNS {
+						if endpoint != "" {
+							endpoint += ","
+						}
+						endpoint += fmt.Sprintf("https://%s:2379", address.Address)
+					}
 				}
 			}
 		}
+		log.Info(fmt.Sprintf("running endpoint checks on %v", endpoint))
 		if err := r.doEtcdHealthCheck(ctx, cluster, endpoint); err != nil {
 			return err
 		}

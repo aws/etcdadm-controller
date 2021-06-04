@@ -9,6 +9,7 @@ import (
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	certutil "k8s.io/client-go/util/cert"
 	"path/filepath"
@@ -62,7 +63,7 @@ func (r *EtcdClusterReconciler) generateCAandClientCertSecrets(ctx context.Conte
 		},
 	}
 	s := apiServerClientCertKeyPair.AsSecret(client.ObjectKey{Name: cluster.Name, Namespace: cluster.Namespace}, *metav1.NewControllerRef(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdCluster")))
-	if err := r.Client.Create(ctx, s); err != nil {
+	if err := r.Client.Create(ctx, s); err != nil && !apierrors.IsAlreadyExists(err) {
 		return fmt.Errorf("failure while saving etcd client key and certificate: %v", err)
 	}
 
@@ -81,8 +82,8 @@ func (r *EtcdClusterReconciler) generateCAandClientCertSecrets(ctx context.Conte
 		},
 		Type: clusterv1.ClusterSecretType,
 	}
-	if err := r.Client.Create(ctx, s); err != nil {
-		return fmt.Errorf("failure while saving etcd client key and certificate: %v", err)
+	if err := r.Client.Create(ctx, s); err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failure while saving etcd CA certificate: %v", err)
 	}
 
 	log.Info("Saved etcd ca cert as secret")
@@ -102,6 +103,7 @@ func etcdCACertKeyPair() secret.Certificates {
 	return certificates
 }
 
+// TODO: save CA and client cert on the reconciler object
 func (r *EtcdClusterReconciler) getCACert(ctx context.Context, cluster *clusterv1.Cluster) ([]byte, error) {
 	caCert := &secret.Certificates{
 		&secret.Certificate{

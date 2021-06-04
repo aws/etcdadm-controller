@@ -5,7 +5,6 @@ metadata:
   namespace: default
 spec:
 #  etcdadmConfigSpec:
-#    foo: bar
   replicas: 3
   infrastructureTemplate:
     kind: DockerMachineTemplate
@@ -59,18 +58,6 @@ metadata:
   name: "abcd"
   namespace: "default"
 ---
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
-kind: DockerMachineTemplate
-metadata:
-  name: "abcd-control-plane"
-  namespace: "default"
-spec:
-  template:
-    spec:
-      extraMounts:
-        - containerPath: "/var/run/docker.sock"
-          hostPath: "/var/run/docker.sock"
----
 kind: KubeadmControlPlane
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha4
 metadata:
@@ -108,11 +95,14 @@ spec:
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
 kind: DockerMachineTemplate
 metadata:
-  name: "abcd-md-0"
+  name: "abcd-control-plane"
   namespace: "default"
 spec:
   template:
-    spec: {}
+    spec:
+      extraMounts:
+        - containerPath: "/var/run/docker.sock"
+          hostPath: "/var/run/docker.sock"
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha4
 kind: KubeadmConfigTemplate
@@ -125,6 +115,15 @@ spec:
       joinConfiguration:
         nodeRegistration:
           kubeletExtraArgs: {eviction-hard: 'nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%'}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha4
+kind: DockerMachineTemplate
+metadata:
+  name: "abcd-md-0"
+  namespace: "default"
+spec:
+  template:
+    spec: {}
 ---
 apiVersion: cluster.x-k8s.io/v1alpha4
 kind: MachineDeployment
