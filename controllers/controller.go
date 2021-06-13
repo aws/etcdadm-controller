@@ -46,30 +46,28 @@ import (
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
 )
 
-// EtcdClusterReconciler reconciles a EtcdCluster object
-type EtcdClusterReconciler struct {
+// EtcdadmClusterReconciler reconciles a EtcdadmCluster object
+type EtcdadmClusterReconciler struct {
 	controller controller.Controller
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=etcdcluster.cluster.x-k8s.io,resources=etcdclusters,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=etcdcluster.cluster.x-k8s.io,resources=etcdclusters/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=etcdadmcluster.cluster.x-k8s.io,resources=etcdadmclusters,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=etcdadmcluster.cluster.x-k8s.io,resources=etcdadmclusters/status,verbs=get;update;patch
 
-func (r *EtcdClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
-	_ = r.Log.WithValues("etcdcluster", req.NamespacedName)
-
-	// your logic here
+func (r *EtcdadmClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
+	_ = r.Log.WithValues("etcdadmcluster", req.NamespacedName)
 	log := ctrl.LoggerFrom(ctx)
 
-	// Lookup the etcdadm config
-	etcdCluster := &etcdv1.EtcdCluster{}
+	// Lookup the etcdadm cluster object
+	etcdCluster := &etcdv1.EtcdadmCluster{}
 	if err := r.Client.Get(ctx, req.NamespacedName, etcdCluster); err != nil {
 		if apierrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
-		log.Error(err, "Failed to get etcd cluster")
+		log.Error(err, "Failed to get etcdadm cluster")
 		return ctrl.Result{}, err
 	}
 
@@ -96,20 +94,17 @@ func (r *EtcdClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	defer func() {
 		// Always attempt to update status.
 		if err := r.updateStatus(ctx, etcdCluster, cluster); err != nil {
-			log.Error(err, "Failed to update EtcdCluster Status")
+			log.Error(err, "Failed to update EtcdadmCluster Status")
 			reterr = kerrors.NewAggregate([]error{reterr, err})
 
 		}
 
-		// Always attempt to Patch the EtcdCluster object and status after each reconciliation.
+		// Always attempt to Patch the EtcdadmCluster object and status after each reconciliation.
 		if err := patchEtcdCluster(ctx, patchHelper, etcdCluster); err != nil {
-			log.Error(err, "Failed to patch EtcdCluster")
+			log.Error(err, "Failed to patch EtcdadmCluster")
 			reterr = kerrors.NewAggregate([]error{reterr, err})
 		}
 
-		// TODO: remove this as soon as we have a proper remote cluster cache in place.
-		// Make KCP to requeue in case status is not ready, so we can check for node status without waiting for a full resync (by default 10 minutes).
-		// Only requeue if we are not going in exponential backoff due to error, or if we are not already re-queueing, or if the object has a deletion timestamp.
 		if reterr == nil && !res.Requeue && !(res.RequeueAfter > 0) && etcdCluster.ObjectMeta.DeletionTimestamp.IsZero() {
 			if !etcdCluster.Status.Ready {
 				res = ctrl.Result{RequeueAfter: 20 * time.Second}
@@ -119,9 +114,9 @@ func (r *EtcdClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	return r.reconcile(ctx, etcdCluster, cluster)
 }
 
-func (r *EtcdClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	c, err := ctrl.NewControllerManagedBy(mgr).
-		For(&etcdv1.EtcdCluster{}).
+		For(&etcdv1.EtcdadmCluster{}).
 		Owns(&clusterv1.Machine{}).
 		Build(r)
 
@@ -131,7 +126,7 @@ func (r *EtcdClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.M
 
 	err = c.Watch(
 		&source.Kind{Type: &clusterv1.Cluster{}},
-		handler.EnqueueRequestsFromMapFunc(r.ClusterToEtcdCluster),
+		handler.EnqueueRequestsFromMapFunc(r.ClusterToEtcdadmCluster),
 		predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx)),
 	)
 	if err != nil {
@@ -143,7 +138,7 @@ func (r *EtcdClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.M
 	return nil
 }
 
-func (r *EtcdClusterReconciler) reconcile(ctx context.Context, etcdCluster *etcdv1.EtcdCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
+func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx, "cluster", cluster.Name)
 	var desiredReplicas int
 	etcdMachines, err := collections.GetFilteredMachinesForCluster(ctx, r.Client, cluster, collections.EtcdClusterMachines(cluster.Name))
@@ -163,6 +158,22 @@ func (r *EtcdClusterReconciler) reconcile(ctx context.Context, etcdCluster *etcd
 		desiredReplicas = int(*etcdCluster.Spec.Replicas)
 	} else {
 		desiredReplicas = 1
+	}
+
+	// Etcd machines rollout due to configuration changes (e.g. upgrades) takes precedence over other operations.
+	needRollout := ep.MachinesNeedingRollout()
+	switch {
+	case len(needRollout) > 0:
+		log.Info("Rolling out Etcd machines", "needRollout", needRollout.Names())
+		//conditions.MarkFalse(controlPlane.KCP, controlplanev1.MachinesSpecUpToDateCondition, controlplanev1.RollingUpdateInProgressReason, clusterv1.ConditionSeverityWarning, "Rolling %d replicas with outdated spec (%d replicas up to date)", len(needRollout), len(controlPlane.Machines)-len(needRollout))
+		return r.upgradeEtcdCluster(ctx, cluster, etcdCluster, ep, needRollout)
+	default:
+		// make sure last upgrade operation is marked as completed.
+		// NOTE: we are checking the condition already exists in order to avoid to set this condition at the first
+		// reconciliation/before a rolling upgrade actually starts.
+		//if conditions.Has(controlPlane.KCP, controlplanev1.MachinesSpecUpToDateCondition) {
+		//	conditions.MarkTrue(controlPlane.KCP, controlplanev1.MachinesSpecUpToDateCondition)
+		//}
 	}
 
 	switch {
@@ -186,12 +197,12 @@ func (r *EtcdClusterReconciler) reconcile(ctx context.Context, etcdCluster *etcd
 	return ctrl.Result{}, nil
 }
 
-func (r *EtcdClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Context, ec *etcdv1.EtcdCluster, cluster *clusterv1.Cluster, failureDomain *string) (ctrl.Result, error) {
+func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, failureDomain *string) (ctrl.Result, error) {
 	// Since the cloned resource should eventually have a controller ref for the Machine, we create an
 	// OwnerReference here without the Controller field set
 	infraCloneOwner := &metav1.OwnerReference{
 		APIVersion: etcdv1.GroupVersion.String(),
-		Kind:       "EtcdCluster",
+		Kind:       "EtcdadmCluster",
 		Name:       ec.Name,
 		UID:        ec.UID,
 	}
@@ -223,23 +234,23 @@ func (r *EtcdClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Conte
 	return ctrl.Result{}, nil
 }
 
-// ClusterToEtcdCluster is a handler.ToRequestsFunc to be used to enqueue requests for reconciliation
+// ClusterToEtcdadmCluster is a handler.ToRequestsFunc to be used to enqueue requests for reconciliation
 // for EtcdadmCluster based on updates to a Cluster.
-func (r *EtcdClusterReconciler) ClusterToEtcdCluster(o client.Object) []ctrl.Request {
+func (r *EtcdadmClusterReconciler) ClusterToEtcdadmCluster(o client.Object) []ctrl.Request {
 	c, ok := o.(*clusterv1.Cluster)
 	if !ok {
 		panic(fmt.Sprintf("Expected a Cluster but got a %T", o))
 	}
 
 	etcdRef := c.Spec.ManagedExternalEtcdRef
-	if etcdRef != nil && etcdRef.Kind == "EtcdCluster" {
+	if etcdRef != nil && etcdRef.Kind == "EtcdadmCluster" {
 		return []ctrl.Request{{NamespacedName: client.ObjectKey{Namespace: etcdRef.Namespace, Name: etcdRef.Name}}}
 	}
 
 	return nil
 }
 
-func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1.EtcdCluster) error {
+func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1.EtcdadmCluster) error {
 	// Always update the readyCondition by summarizing the state of other conditions.
 	//conditions.SetSummary(ec,
 	//	conditions.WithConditions(

@@ -1,0 +1,7 @@
+apiVersion: etcdcluster.cluster.x-k8s.io/v1alpha3
+kind: EtcdadmCluster
+metadata:
+  name: etcdadmcluster-sample
+spec:
+  # Add fields here
+  foo: bar

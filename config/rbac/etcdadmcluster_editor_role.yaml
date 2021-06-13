@@ -1,0 +1,24 @@
+# permissions for end users to edit etcdadmclusters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: etcdadmcluster-editor-role
+rules:
+- apiGroups:
+  - etcdcluster.cluster.x-k8s.io
+  resources:
+  - etcdadmclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - etcdcluster.cluster.x-k8s.io
+  resources:
+  - etcdadmclusters/status
+  verbs:
+  - get
