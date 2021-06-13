@@ -6,9 +6,11 @@ import (
 	"crypto/x509"
 	"fmt"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
+	//etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
 	"github.com/pkg/errors"
 	"net/http"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	//clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/util/collections"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"strings"
@@ -54,32 +56,13 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 				endpoint += ","
 			}
 			endpoint += fmt.Sprintf("https://%s:2379", getMachineAddress(m))
-			//for _, address := range m.Status.Addresses {
-			//	if address.Type == clusterv1.MachineInternalIP || address.Type == clusterv1.MachineInternalDNS {
-			//		if endpoint != "" {
-			//			endpoint += ","
-			//		}
-			//		endpoint += fmt.Sprintf("https://%s:2379", address.Address)
-			//		foundAddress = true
-			//	}
-			//}
-			//for _, address := range m.Status.Addresses {
-			//	if !foundAddress {
-			//		if address.Type == clusterv1.MachineExternalIP || address.Type == clusterv1.MachineExternalDNS {
-			//			if endpoint != "" {
-			//				endpoint += ","
-			//			}
-			//			endpoint += fmt.Sprintf("https://%s:2379", address.Address)
-			//		}
-			//	}
-			//}
 		}
 		log.Info(fmt.Sprintf("running endpoint checks on %v", endpoint))
 		if err := r.doEtcdHealthCheck(ctx, cluster, endpoint); err != nil {
 			return err
 		}
 		// etcd ready when all machines have address set
-		ec.Status.Ready = true
+		ec.Status.CreationComplete = true
 		ec.Status.Endpoint = endpoint
 	}
 	return nil
