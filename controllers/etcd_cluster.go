@@ -143,7 +143,6 @@ func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec 
 				log.Error(err, "Failed to delete etcd machine")
 				return ctrl.Result{}, err
 			}
-			//etcdClient.Snapshot(ctx)
 		} else {
 			log.Info("[membership] Not removing member because it is the last in the cluster")
 		}

@@ -64,7 +64,7 @@ type EtcdadmClusterStatus struct {
 	Initialized bool `json:"initialized"`
 
 	// +optional
-	Ready bool `json:"ready"`
+	CreationComplete bool `json:"creationComplete"`
 
 	// +optional
 	Endpoint string `json:"endpoint"`

@@ -19,9 +19,15 @@ package controllers
 import (
 	"context"
 	"fmt"
-	//corev1 "k8s.io/api/core/v1"
+	"time"
+
+	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	//"k8s.io/apiserver/pkg/storage/names"
+	"k8s.io/apimachinery/pkg/runtime"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/collections"
@@ -30,20 +36,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	//"sigs.k8s.io/etcdadm/etcd"
-	"time"
-
-	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	//clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
+	//etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
 )
 
 // EtcdadmClusterReconciler reconciles a EtcdadmCluster object
@@ -54,8 +51,8 @@ type EtcdadmClusterReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=etcdadmcluster.cluster.x-k8s.io,resources=etcdadmclusters,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=etcdadmcluster.cluster.x-k8s.io,resources=etcdadmclusters/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=etcdcluster.cluster.x-k8s.io,resources=etcdadmclusters,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=etcdcluster.cluster.x-k8s.io,resources=etcdadmclusters/status,verbs=get;update;patch
 
 func (r *EtcdadmClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
 	_ = r.Log.WithValues("etcdadmcluster", req.NamespacedName)
@@ -106,7 +103,7 @@ func (r *EtcdadmClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		}
 
 		if reterr == nil && !res.Requeue && !(res.RequeueAfter > 0) && etcdCluster.ObjectMeta.DeletionTimestamp.IsZero() {
-			if !etcdCluster.Status.Ready {
+			if !etcdCluster.Status.CreationComplete {
 				res = ctrl.Result{RequeueAfter: 20 * time.Second}
 			}
 		}
