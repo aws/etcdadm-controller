@@ -29,12 +29,15 @@ const (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// EtcdClusterSpec defines the desired state of EtcdCluster
-type EtcdClusterSpec struct {
+// EtcdadmClusterSpec defines the desired state of EtcdadmCluster
+type EtcdadmClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
 	Replicas *int32 `json:"replicas,omitempty"`
+
+	// +optional
+	Version string `json:"version,omitempty"`
 
 	// InfrastructureTemplate is a required reference to a custom resource
 	// offered by an infrastructure provider.
@@ -44,8 +47,8 @@ type EtcdClusterSpec struct {
 	EtcdadmConfigSpec etcdbp.EtcdadmConfigSpec `json:"etcdadmConfigSpec"`
 }
 
-// EtcdClusterStatus defines the observed state of EtcdCluster
-type EtcdClusterStatus struct {
+// EtcdadmClusterStatus defines the observed state of EtcdadmCluster
+type EtcdadmClusterStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
@@ -77,24 +80,24 @@ type EtcdClusterStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// EtcdCluster is the Schema for the etcdclusters API
-type EtcdCluster struct {
+// EtcdadmCluster is the Schema for the etcdclusters API
+type EtcdadmCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   EtcdClusterSpec   `json:"spec,omitempty"`
-	Status EtcdClusterStatus `json:"status,omitempty"`
+	Spec   EtcdadmClusterSpec   `json:"spec,omitempty"`
+	Status EtcdadmClusterStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// EtcdClusterList contains a list of EtcdCluster
-type EtcdClusterList struct {
+// EtcdadmClusterList contains a list of EtcdadmCluster
+type EtcdadmClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []EtcdCluster `json:"items"`
+	Items           []EtcdadmCluster `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&EtcdCluster{}, &EtcdClusterList{})
+	SchemeBuilder.Register(&EtcdadmCluster{}, &EtcdadmClusterList{})
 }

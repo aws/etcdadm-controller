@@ -6,20 +6,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.0-beta.0.0.20210504224115-9cd8c2840e84
   creationTimestamp: null
-  name: etcdclusters.etcdcluster.cluster.x-k8s.io
+  name: etcdadmclusters.etcdcluster.cluster.x-k8s.io
 spec:
   group: etcdcluster.cluster.x-k8s.io
   names:
-    kind: EtcdCluster
-    listKind: EtcdClusterList
-    plural: etcdclusters
-    singular: etcdcluster
+    kind: EtcdadmCluster
+    listKind: EtcdadmClusterList
+    plural: etcdadmclusters
+    singular: etcdadmcluster
   scope: Namespaced
   versions:
   - name: v1alpha4
     schema:
       openAPIV3Schema:
-        description: EtcdCluster is the Schema for the etcdclusters API
+        description: EtcdadmCluster is the Schema for the etcdclusters API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,7 +34,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: EtcdClusterSpec defines the desired state of EtcdCluster
+            description: EtcdadmClusterSpec defines the desired state of EtcdadmCluster
             properties:
               etcdadmConfigSpec:
                 description: EtcdadmConfigSpec defines the desired state of EtcdadmConfig
@@ -152,7 +152,7 @@ spec:
             - infrastructureTemplate
             type: object
           status:
-            description: EtcdClusterStatus defines the observed state of EtcdCluster
+            description: EtcdadmClusterStatus defines the observed state of EtcdadmCluster
             properties:
               endpoint:
                 type: string

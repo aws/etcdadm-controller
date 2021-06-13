@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/etcdadm/certs/pkiutil"
 )
 
-func (r *EtcdClusterReconciler) generateCAandClientCertSecrets(ctx context.Context, cluster *clusterv1.Cluster, etcdCluster *etcdv1.EtcdCluster) error {
+func (r *EtcdadmClusterReconciler) generateCAandClientCertSecrets(ctx context.Context, cluster *clusterv1.Cluster, etcdCluster *etcdv1.EtcdadmCluster) error {
 	log := r.Log
 	// now generate api server client certs using the CA cert
 	CACertKeyPair := etcdCACertKeyPair()
@@ -29,7 +29,7 @@ func (r *EtcdClusterReconciler) generateCAandClientCertSecrets(ctx context.Conte
 		ctx,
 		r.Client,
 		util.ObjectKey(cluster),
-		*metav1.NewControllerRef(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdCluster")),
+		*metav1.NewControllerRef(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdadmCluster")),
 	)
 	caCertKey := CACertKeyPair.GetByPurpose(secret.ManagedExternalEtcdCA)
 
@@ -62,7 +62,7 @@ func (r *EtcdClusterReconciler) generateCAandClientCertSecrets(ctx context.Conte
 			Key:  certs.EncodePrivateKeyPEM(apiClientKey),
 		},
 	}
-	s := apiServerClientCertKeyPair.AsSecret(client.ObjectKey{Name: cluster.Name, Namespace: cluster.Namespace}, *metav1.NewControllerRef(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdCluster")))
+	s := apiServerClientCertKeyPair.AsSecret(client.ObjectKey{Name: cluster.Name, Namespace: cluster.Namespace}, *metav1.NewControllerRef(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdadmCluster")))
 	if err := r.Client.Create(ctx, s); err != nil && !apierrors.IsAlreadyExists(err) {
 		return fmt.Errorf("failure while saving etcd client key and certificate: %v", err)
 	}
@@ -104,7 +104,7 @@ func etcdCACertKeyPair() secret.Certificates {
 }
 
 // TODO: save CA and client cert on the reconciler object
-func (r *EtcdClusterReconciler) getCACert(ctx context.Context, cluster *clusterv1.Cluster) ([]byte, error) {
+func (r *EtcdadmClusterReconciler) getCACert(ctx context.Context, cluster *clusterv1.Cluster) ([]byte, error) {
 	caCert := &secret.Certificates{
 		&secret.Certificate{
 			Purpose: secret.ManagedExternalEtcdCA,
@@ -117,7 +117,7 @@ func (r *EtcdClusterReconciler) getCACert(ctx context.Context, cluster *clusterv
 	return caCertKey.KeyPair.Cert, nil
 }
 
-func (r *EtcdClusterReconciler) getClientCerts(ctx context.Context, cluster *clusterv1.Cluster) (tls.Certificate, error) {
+func (r *EtcdadmClusterReconciler) getClientCerts(ctx context.Context, cluster *clusterv1.Cluster) (tls.Certificate, error) {
 	clientCert := &secret.Certificates{
 		&secret.Certificate{
 			Purpose: secret.APIServerEtcdClient,

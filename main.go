@@ -18,8 +18,9 @@ package main
 
 import (
 	"flag"
-	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha4"
 	"os"
+
+	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha4"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,6 +29,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	etcdclusterv1alpha3 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
 	etcdclusterv1alpha4 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
 	"github.com/mrajashree/etcdadm-controller/controllers"
 	// +kubebuilder:scaffold:imports
@@ -44,6 +46,7 @@ func init() {
 	_ = etcdclusterv1alpha4.AddToScheme(scheme)
 	_ = clusterv1.AddToScheme(scheme)
 	_ = etcdbp.AddToScheme(scheme)
+	_ = etcdclusterv1alpha3.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -72,12 +75,20 @@ func main() {
 
 	// Setup the context that's going to be used in controllers and for the manager.
 	ctx := ctrl.SetupSignalHandler()
-	if err = (&controllers.EtcdClusterReconciler{
+	if err = (&controllers.EtcdadmClusterReconciler{
 		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("EtcdCluster"),
+		Log:    ctrl.Log.WithName("controllers").WithName("EtcdadmCluster"),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(ctx, mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "EtcdCluster")
+		setupLog.Error(err, "unable to create controller", "controller", "EtcdadmCluster")
+		os.Exit(1)
+	}
+	if err = (&controllers.EtcdadmClusterReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("EtcdadmCluster"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "EtcdadmCluster")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

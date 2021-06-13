@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-func (r *EtcdClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdCluster, cluster *clusterv1.Cluster) error {
+func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) error {
 	log := ctrl.LoggerFrom(ctx, "cluster", cluster.Name)
 	log.Info("update status is called")
 	selector := collections.EtcdPlaneSelectorForCluster(cluster.Name)
@@ -49,27 +49,30 @@ func (r *EtcdClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.Etc
 			if len(m.Status.Addresses) == 0 {
 				return nil
 			}
-			var foundAddress bool
 			// TODO: save endpoint on the EtcdadmConfig status object
-			for _, address := range m.Status.Addresses {
-				if address.Type == clusterv1.MachineInternalIP || address.Type == clusterv1.MachineInternalDNS {
-					if endpoint != "" {
-						endpoint += ","
-					}
-					endpoint += fmt.Sprintf("https://%s:2379", address.Address)
-					foundAddress = true
-				}
+			if endpoint != "" {
+				endpoint += ","
 			}
-			for _, address := range m.Status.Addresses {
-				if !foundAddress {
-					if address.Type == clusterv1.MachineExternalIP || address.Type == clusterv1.MachineExternalDNS {
-						if endpoint != "" {
-							endpoint += ","
-						}
-						endpoint += fmt.Sprintf("https://%s:2379", address.Address)
-					}
-				}
-			}
+			endpoint += fmt.Sprintf("https://%s:2379", getMachineAddress(m))
+			//for _, address := range m.Status.Addresses {
+			//	if address.Type == clusterv1.MachineInternalIP || address.Type == clusterv1.MachineInternalDNS {
+			//		if endpoint != "" {
+			//			endpoint += ","
+			//		}
+			//		endpoint += fmt.Sprintf("https://%s:2379", address.Address)
+			//		foundAddress = true
+			//	}
+			//}
+			//for _, address := range m.Status.Addresses {
+			//	if !foundAddress {
+			//		if address.Type == clusterv1.MachineExternalIP || address.Type == clusterv1.MachineExternalDNS {
+			//			if endpoint != "" {
+			//				endpoint += ","
+			//			}
+			//			endpoint += fmt.Sprintf("https://%s:2379", address.Address)
+			//		}
+			//	}
+			//}
 		}
 		log.Info(fmt.Sprintf("running endpoint checks on %v", endpoint))
 		if err := r.doEtcdHealthCheck(ctx, cluster, endpoint); err != nil {
@@ -82,7 +85,7 @@ func (r *EtcdClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.Etc
 	return nil
 }
 
-func (r *EtcdClusterReconciler) doEtcdHealthCheck(ctx context.Context, cluster *clusterv1.Cluster, endpoints string) error {
+func (r *EtcdadmClusterReconciler) doEtcdHealthCheck(ctx context.Context, cluster *clusterv1.Cluster, endpoints string) error {
 	caCertPool := x509.NewCertPool()
 	caCert, err := r.getCACert(ctx, cluster)
 	if err != nil {
