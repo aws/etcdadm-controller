@@ -2,30 +2,18 @@ package controllers
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"fmt"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"reflect"
-	"sigs.k8s.io/cluster-api/controllers/external"
-	"time"
-
 	etcdbpv1alpha4 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha4"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
 	"github.com/pkg/errors"
-	"go.etcd.io/etcd/api/v3/etcdserverpb"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apiserver/pkg/storage/names"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"reflect"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/failuredomains"
 	"sigs.k8s.io/cluster-api/util/patch"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/etcdadm/constants"
 )
 
 type EtcdPlane struct {
@@ -66,173 +54,6 @@ func NewEtcdPlane(ctx context.Context, client client.Client, cluster *clusterv1.
 	}, nil
 }
 
-func (r *EtcdadmClusterReconciler) intializeEtcdCluster(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane) (ctrl.Result, error) {
-	if err := r.generateCAandClientCertSecrets(ctx, cluster, ec); err != nil {
-		r.Log.Error(err, "error generating etcd CA certs")
-		return ctrl.Result{}, err
-	}
-	fd := ep.NextFailureDomainForScaleUp()
-	return r.cloneConfigsAndGenerateMachine(ctx, ec, cluster, fd)
-}
-
-func (r *EtcdadmClusterReconciler) scaleUpEtcdCluster(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane) (ctrl.Result, error) {
-	fd := ep.NextFailureDomainForScaleUp()
-	return r.cloneConfigsAndGenerateMachine(ctx, ec, cluster, fd)
-}
-
-func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane, outdatedMachines collections.Machines) (ctrl.Result, error) {
-	// Pick the Machine that we should scale down.
-	machineToDelete, err := selectMachineForScaleDown(ep, outdatedMachines)
-	if err != nil || machineToDelete == nil {
-		return ctrl.Result{}, errors.Wrap(err, "failed to select machine for scale down")
-	}
-
-	//var localMember *etcdserverpb.Member
-	log := r.Log
-	caCertPool := x509.NewCertPool()
-	caCert, err := r.getCACert(ctx, cluster)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	caCertPool.AppendCertsFromPEM(caCert)
-
-	clientCert, err := r.getClientCerts(ctx, cluster)
-	if err != nil {
-		return ctrl.Result{}, errors.Wrap(err, "Error getting client cert for healthcheck")
-	}
-
-	// TODO: save endpoint on the EtcdadmConfig status object
-	machineAddress := getMachineAddress(machineToDelete)
-	endpoint := fmt.Sprintf("https://%s:2379", machineAddress)
-	peerURL := fmt.Sprintf("https://%s:2380", machineAddress)
-	if err := r.changeClusterInitAddress(ctx, ec, cluster, ep, machineAddress, machineToDelete); err != nil {
-		return ctrl.Result{}, err
-	}
-	etcdClient, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{endpoint},
-		DialTimeout: 5 * time.Second,
-		TLS: &tls.Config{
-			RootCAs:      caCertPool,
-			Certificates: []tls.Certificate{clientCert},
-		},
-	})
-	if etcdClient == nil || err != nil {
-		log.Info("cloud not create etcd client")
-		return ctrl.Result{}, err
-	}
-	etcdCtx, cancel := context.WithTimeout(ctx, constants.DefaultEtcdRequestTimeout)
-	mresp, err := etcdClient.MemberList(etcdCtx)
-	cancel()
-	if err != nil {
-		log.Error(err, "Error listing members: %v")
-		return ctrl.Result{}, err
-	}
-
-	localMember, ok := memberForPeerURLs(mresp, []string{peerURL})
-	if ok {
-		log.Info("[membership] Member was not removed")
-		if len(mresp.Members) > 1 {
-			log.Info("[membership] Removing member")
-			etcdCtx, cancel = context.WithTimeout(ctx, constants.DefaultEtcdRequestTimeout)
-			_, err = etcdClient.MemberRemove(etcdCtx, localMember.ID)
-			cancel()
-			if err != nil {
-				log.Error(err, "[membership] Error removing member: %v")
-			}
-			if err := r.Client.Delete(ctx, machineToDelete); err != nil && !apierrors.IsNotFound(err) {
-				log.Error(err, "Failed to delete etcd machine")
-				return ctrl.Result{}, err
-			}
-		} else {
-			log.Info("[membership] Not removing member because it is the last in the cluster")
-		}
-	} else {
-		log.Info("[membership] Member was removed")
-	}
-
-	return ctrl.Result{}, nil
-}
-
-func (r *EtcdadmClusterReconciler) changeClusterInitAddress(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane, machineAddress string, machineToDelete *clusterv1.Machine) error {
-	secretNameNs := client.ObjectKey{Name: ec.Status.InitMachineAddress, Namespace: cluster.Namespace}
-	secretInitAddress := &corev1.Secret{}
-	if err := r.Client.Get(ctx, secretNameNs, secretInitAddress); err != nil {
-		return err
-	}
-	currentInitAddress := string(secretInitAddress.Data["address"])
-	if currentInitAddress != machineAddress {
-		// Machine being deleted is not the machine whose address is used by members joining, noop
-		return nil
-	}
-	upToDateMachines := ep.UpToDateMachines()
-	var newInitAddress string
-	if len(upToDateMachines) == 0 {
-		// This can happen during an upgrade if the first node picked for scale down is the init node
-		// Get the address from any of the other machines
-		r.Log.Info("First machine picked during upgrade scale down is init machine, so replacing with one of the existing machines")
-		for _, m := range ep.Machines.Difference(collections.FromMachines(machineToDelete)) {
-			newInitAddress = getMachineAddress(m)
-			r.Log.Info(fmt.Sprintf("Picking non updated machine: %v", newInitAddress))
-			break
-		}
-	} else {
-		for _, m := range upToDateMachines {
-			newInitAddress = getMachineAddress(m)
-			r.Log.Info(fmt.Sprintf("Picking fully updated machine: %v", newInitAddress))
-			break
-		}
-	}
-	if newInitAddress == "" {
-		return fmt.Errorf("Could not find a machine to use to join etcd cluster as a member")
-	}
-
-	secretInitAddress.Data["address"] = []byte(newInitAddress)
-	return r.Client.Update(ctx, secretInitAddress)
-}
-
-func getMachineAddress(machine *clusterv1.Machine) string {
-	var foundAddress bool
-	var machineAddress string
-	for _, address := range machine.Status.Addresses {
-		if address.Type == clusterv1.MachineInternalIP || address.Type == clusterv1.MachineInternalDNS {
-			machineAddress = address.Address
-			foundAddress = true
-			break
-		}
-	}
-	for _, address := range machine.Status.Addresses {
-		if !foundAddress {
-			if address.Type == clusterv1.MachineExternalIP || address.Type == clusterv1.MachineExternalDNS {
-				machineAddress = address.Address
-				break
-			}
-		}
-	}
-	return machineAddress
-}
-
-func memberForPeerURLs(members *clientv3.MemberListResponse, peerURLs []string) (*etcdserverpb.Member, bool) {
-	for _, m := range members.Members {
-		if stringSlicesEqual(m.PeerURLs, peerURLs) {
-			return m, true
-		}
-	}
-	return nil, false
-}
-
-// stringSlicesEqual compares two string slices for equality
-func stringSlicesEqual(l, r []string) bool {
-	if len(l) != len(r) {
-		return false
-	}
-	for i := range l {
-		if l[i] != r[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func selectMachineForScaleDown(ep *EtcdPlane, outdatedMachines collections.Machines) (*clusterv1.Machine, error) {
 	machines := ep.Machines
 	switch {
@@ -244,62 +65,6 @@ func selectMachineForScaleDown(ep *EtcdPlane, outdatedMachines collections.Machi
 		machines = outdatedMachines
 	}
 	return ep.MachineInFailureDomainWithMostMachines(machines)
-}
-
-func (r *EtcdadmClusterReconciler) generateEtcdadmConfig(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) (*corev1.ObjectReference, error) {
-	owner := metav1.OwnerReference{
-		APIVersion: etcdv1.GroupVersion.String(),
-		Kind:       "EtcdadmCluster",
-		Name:       ec.Name,
-		UID:        ec.UID,
-	}
-	bootstrapConfig := &etcdbpv1alpha4.EtcdadmConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            names.SimpleNameGenerator.GenerateName(ec.Name + "-"),
-			Namespace:       ec.Namespace,
-			Labels:          EtcdLabelsForCluster(cluster.Name),
-			OwnerReferences: []metav1.OwnerReference{owner},
-		},
-		Spec: ec.Spec.EtcdadmConfigSpec,
-	}
-	bootstrapRef := &corev1.ObjectReference{
-		APIVersion: etcdbpv1alpha4.GroupVersion.String(),
-		Kind:       "EtcdadmConfig",
-		Name:       bootstrapConfig.GetName(),
-		Namespace:  bootstrapConfig.GetNamespace(),
-		UID:        bootstrapConfig.GetUID(),
-	}
-
-	if err := r.Client.Create(ctx, bootstrapConfig); err != nil {
-		return nil, errors.Wrap(err, "Failed to create etcdadm bootstrap configuration")
-	}
-
-	return bootstrapRef, nil
-}
-
-func (r *EtcdadmClusterReconciler) generateMachine(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, infraRef, bootstrapRef *corev1.ObjectReference, failureDomain *string) error {
-	machine := &clusterv1.Machine{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      names.SimpleNameGenerator.GenerateName(ec.Name + "-"),
-			Namespace: ec.Namespace,
-			Labels:    EtcdLabelsForCluster(cluster.Name),
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(ec, etcdv1.GroupVersion.WithKind("EtcdadmCluster")),
-			},
-		},
-		Spec: clusterv1.MachineSpec{
-			ClusterName:       cluster.Name,
-			InfrastructureRef: *infraRef,
-			Bootstrap: clusterv1.Bootstrap{
-				ConfigRef: bootstrapRef,
-			},
-			FailureDomain: failureDomain,
-		},
-	}
-	if err := r.Client.Create(ctx, machine); err != nil {
-		return errors.Wrap(err, "failed to create machine")
-	}
-	return nil
 }
 
 // MachineWithDeleteAnnotation returns a machine that has been annotated with DeleteMachineAnnotation key.
@@ -387,7 +152,7 @@ func MatchesEtcdadmConfig(machineConfigs map[string]*etcdbpv1alpha4.EtcdadmConfi
 		}
 		etcdadmConfig, found := machineConfigs[machine.Name]
 		if !found {
-			// Return true here because failing to get KubeadmConfig should not be considered as unmatching.
+			// Return true here because failing to get EtcdadmConfig should not be considered as unmatching.
 			// This is a safety precaution to avoid rolling out machines if the client or the api-server is misbehaving.
 			return true
 		}

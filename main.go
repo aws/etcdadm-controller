@@ -29,7 +29,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	etcdclusterv1alpha3 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
 	etcdclusterv1alpha4 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
 	"github.com/mrajashree/etcdadm-controller/controllers"
 	// +kubebuilder:scaffold:imports
@@ -46,7 +45,6 @@ func init() {
 	_ = etcdclusterv1alpha4.AddToScheme(scheme)
 	_ = clusterv1.AddToScheme(scheme)
 	_ = etcdbp.AddToScheme(scheme)
-	_ = etcdclusterv1alpha3.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
