@@ -2,11 +2,11 @@ package controllers
 
 import (
 	"context"
-	ctrl "sigs.k8s.io/controller-runtime"
 
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
-	"sigs.k8s.io/cluster-api/util/collections"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
+	"github.com/mrajashree/etcdadm-controller/util/collections"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 func (r *EtcdadmClusterReconciler) upgradeEtcdCluster(ctx context.Context,

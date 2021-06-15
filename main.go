@@ -20,17 +20,15 @@ import (
 	"flag"
 	"os"
 
-	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha4"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
-
+	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
+	etcdclusterv1alpha3 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
+	"github.com/mrajashree/etcdadm-controller/controllers"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	etcdclusterv1alpha4 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
-	"github.com/mrajashree/etcdadm-controller/controllers"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -42,7 +40,7 @@ var (
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
-	_ = etcdclusterv1alpha4.AddToScheme(scheme)
+	_ = etcdclusterv1alpha3.AddToScheme(scheme)
 	_ = clusterv1.AddToScheme(scheme)
 	_ = etcdbp.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme

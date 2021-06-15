@@ -2,16 +2,17 @@ package controllers
 
 import (
 	"context"
-	etcdbpv1alpha4 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha4"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
+	"reflect"
+
+	etcdbpv1alpha3 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
+	"github.com/mrajashree/etcdadm-controller/util/collections"
+	"github.com/mrajashree/etcdadm-controller/util/failuredomains"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"reflect"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/controllers/external"
-	"sigs.k8s.io/cluster-api/util/collections"
-	"sigs.k8s.io/cluster-api/util/failuredomains"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -22,7 +23,7 @@ type EtcdPlane struct {
 	Machines             collections.Machines
 	machinesPatchHelpers map[string]*patch.Helper
 
-	etcdadmConfigs map[string]*etcdbpv1alpha4.EtcdadmConfig
+	etcdadmConfigs map[string]*etcdbpv1alpha3.EtcdadmConfig
 	infraResources map[string]*unstructured.Unstructured
 }
 
@@ -137,7 +138,7 @@ func (ep *EtcdPlane) MachinesNeedingRollout() collections.Machines {
 
 // MatchesEtcdadmClusterConfiguration returns a filter to find all machines that matches with EtcdadmCluster config and do not require any rollout.
 // Etcd version and extra params, and infrastructure template need to be equivalent.
-func MatchesEtcdadmClusterConfiguration(infraConfigs map[string]*unstructured.Unstructured, machineConfigs map[string]*etcdbpv1alpha4.EtcdadmConfig, ec *etcdv1.EtcdadmCluster) func(machine *clusterv1.Machine) bool {
+func MatchesEtcdadmClusterConfiguration(infraConfigs map[string]*unstructured.Unstructured, machineConfigs map[string]*etcdbpv1alpha3.EtcdadmConfig, ec *etcdv1.EtcdadmCluster) func(machine *clusterv1.Machine) bool {
 	return collections.And(
 		MatchesEtcdadmConfig(machineConfigs, ec),
 		MatchesTemplateClonedFrom(infraConfigs, ec),
@@ -145,7 +146,7 @@ func MatchesEtcdadmClusterConfiguration(infraConfigs map[string]*unstructured.Un
 }
 
 // MatchesEtcdadmConfig checks if machine's EtcdadmConfigSpec is equivalent with EtcdadmCluster's spec
-func MatchesEtcdadmConfig(machineConfigs map[string]*etcdbpv1alpha4.EtcdadmConfig, ec *etcdv1.EtcdadmCluster) collections.Func {
+func MatchesEtcdadmConfig(machineConfigs map[string]*etcdbpv1alpha3.EtcdadmConfig, ec *etcdv1.EtcdadmCluster) collections.Func {
 	return func(machine *clusterv1.Machine) bool {
 		if machine == nil {
 			return false
@@ -209,14 +210,14 @@ func getInfraResources(ctx context.Context, cl client.Client, machines collectio
 }
 
 // getEtcdadmConfigs fetches the etcdadm config for each machine in the collection and returns a map of machine.Name -> EtcdadmConfig.
-func getEtcdadmConfigs(ctx context.Context, cl client.Client, machines collections.Machines) (map[string]*etcdbpv1alpha4.EtcdadmConfig, error) {
-	result := map[string]*etcdbpv1alpha4.EtcdadmConfig{}
+func getEtcdadmConfigs(ctx context.Context, cl client.Client, machines collections.Machines) (map[string]*etcdbpv1alpha3.EtcdadmConfig, error) {
+	result := map[string]*etcdbpv1alpha3.EtcdadmConfig{}
 	for _, m := range machines {
 		bootstrapRef := m.Spec.Bootstrap.ConfigRef
 		if bootstrapRef == nil {
 			continue
 		}
-		machineConfig := &etcdbpv1alpha4.EtcdadmConfig{}
+		machineConfig := &etcdbpv1alpha3.EtcdadmConfig{}
 		if err := cl.Get(ctx, client.ObjectKey{Name: bootstrapRef.Name, Namespace: m.Namespace}, machineConfig); err != nil {
 			if apierrors.IsNotFound(errors.Cause(err)) {
 				continue

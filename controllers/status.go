@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"strings"
 
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
+	"github.com/mrajashree/etcdadm-controller/util/collections"
 	"github.com/pkg/errors"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
-	"sigs.k8s.io/cluster-api/util/collections"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 

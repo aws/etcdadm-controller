@@ -4,4 +4,7 @@ resources:
 - group: etcdcluster
   kind: EtcdCluster
   version: v1alpha4
+- group: etcdcluster
+  kind: EtcdadmCluster
+  version: v1alpha3
 version: "2"

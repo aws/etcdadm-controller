@@ -14,22 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha4
+package v1alpha3
 
 import (
-	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha4"
+	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
-const (
-	EtcdCertsGeneratedCondition string = "EtcdCertsGenerated"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// EtcdadmClusterSpec defines the desired state of EtcdadmCluster
 type EtcdadmClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
@@ -80,7 +75,7 @@ type EtcdadmClusterStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// EtcdadmCluster is the Schema for the etcdclusters API
+// EtcdadmCluster is the Schema for the etcdadmclusters API
 type EtcdadmCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

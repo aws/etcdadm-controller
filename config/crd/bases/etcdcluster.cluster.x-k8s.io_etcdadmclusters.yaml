@@ -16,10 +16,10 @@ spec:
     singular: etcdadmcluster
   scope: Namespaced
   versions:
-  - name: v1alpha4
+  - name: v1alpha3
     schema:
       openAPIV3Schema:
-        description: EtcdadmCluster is the Schema for the etcdclusters API
+        description: EtcdadmCluster is the Schema for the etcdadmclusters API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,7 +34,6 @@ spec:
           metadata:
             type: object
           spec:
-            description: EtcdadmClusterSpec defines the desired state of EtcdadmCluster
             properties:
               etcdadmConfigSpec:
                 description: EtcdadmConfigSpec defines the desired state of EtcdadmConfig
