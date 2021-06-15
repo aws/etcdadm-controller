@@ -12,11 +12,10 @@ import (
 	"github.com/mrajashree/etcdadm-controller/util/collections"
 	"github.com/pkg/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
-	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) error {
-	log := ctrl.LoggerFrom(ctx, "cluster", cluster.Name)
+	log := r.Log
 	log.Info("update status is called")
 	selector := collections.EtcdPlaneSelectorForCluster(cluster.Name)
 	// Copy label selector to its status counterpart in string format.

@@ -7,7 +7,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/conditions"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // Func is the functon definition for a filter.
@@ -80,7 +80,7 @@ func InFailureDomains(failureDomains ...*string) Func {
 
 // OwnedMachines returns a filter to find all machines owned by specified owner.
 // Usage: GetFilteredMachinesForCluster(ctx, client, cluster, OwnedMachines(controlPlane)).
-func OwnedMachines(owner client.Object) func(machine *clusterv1.Machine) bool {
+func OwnedMachines(owner controllerutil.Object) func(machine *clusterv1.Machine) bool {
 	return func(machine *clusterv1.Machine) bool {
 		if machine == nil {
 			return false

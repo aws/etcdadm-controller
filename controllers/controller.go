@@ -50,9 +50,9 @@ type EtcdadmClusterReconciler struct {
 // +kubebuilder:rbac:groups=etcdcluster.cluster.x-k8s.io,resources=etcdadmclusters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=etcdcluster.cluster.x-k8s.io,resources=etcdadmclusters/status,verbs=get;update;patch
 
-func (r *EtcdadmClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
-	_ = r.Log.WithValues("etcdadmcluster", req.NamespacedName)
-	log := ctrl.LoggerFrom(ctx)
+func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, reterr error) {
+	ctx := context.Background()
+	log := r.Log.WithValues("etcdadmcluster", req.NamespacedName)
 
 	// Lookup the etcdadm cluster object
 	etcdCluster := &etcdv1.EtcdadmCluster{}
@@ -107,7 +107,7 @@ func (r *EtcdadmClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	return r.reconcile(ctx, etcdCluster, cluster)
 }
 
-func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+func (r *EtcdadmClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	c, err := ctrl.NewControllerManagedBy(mgr).
 		For(&etcdv1.EtcdadmCluster{}).
 		Owns(&clusterv1.Machine{}).
@@ -119,8 +119,10 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 
 	err = c.Watch(
 		&source.Kind{Type: &clusterv1.Cluster{}},
-		handler.EnqueueRequestsFromMapFunc(r.ClusterToEtcdadmCluster),
-		predicates.ClusterUnpausedAndInfrastructureReady(ctrl.LoggerFrom(ctx)),
+		&handler.EnqueueRequestsFromMapFunc{
+			ToRequests: handler.ToRequestsFunc(r.ClusterToEtcdadmCluster),
+		},
+		predicates.ClusterUnpausedAndInfrastructureReady(r.Log),
 	)
 	if err != nil {
 		return errors.Wrap(err, "failed adding Watch for Clusters to controller manager")
@@ -132,7 +134,7 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 }
 
 func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx, "cluster", cluster.Name)
+	log := r.Log
 	var desiredReplicas int
 	etcdMachines, err := collections.GetFilteredMachinesForCluster(ctx, r.Client, cluster, collections.EtcdClusterMachines(cluster.Name))
 	if err != nil {
@@ -192,8 +194,8 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 
 // ClusterToEtcdadmCluster is a handler.ToRequestsFunc to be used to enqueue requests for reconciliation
 // for EtcdadmCluster based on updates to a Cluster.
-func (r *EtcdadmClusterReconciler) ClusterToEtcdadmCluster(o client.Object) []ctrl.Request {
-	c, ok := o.(*clusterv1.Cluster)
+func (r *EtcdadmClusterReconciler) ClusterToEtcdadmCluster(o handler.MapObject) []ctrl.Request {
+	c, ok := o.Object.(*clusterv1.Cluster)
 	if !ok {
 		panic(fmt.Sprintf("Expected a Cluster but got a %T", o))
 	}
