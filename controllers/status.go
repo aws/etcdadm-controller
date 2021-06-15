@@ -5,15 +5,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
-	//etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
-	"github.com/pkg/errors"
 	"net/http"
+	"strings"
+
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
+	"github.com/pkg/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
-	//clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/util/collections"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"strings"
 )
 
 func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) error {
@@ -55,7 +54,7 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 			if endpoint != "" {
 				endpoint += ","
 			}
-			endpoint += fmt.Sprintf("https://%s:2379", getMachineAddress(m))
+			endpoint += fmt.Sprintf("https://%s:2379", getEtcdMachineAddress(m))
 		}
 		log.Info(fmt.Sprintf("running endpoint checks on %v", endpoint))
 		if err := r.doEtcdHealthCheck(ctx, cluster, endpoint); err != nil {

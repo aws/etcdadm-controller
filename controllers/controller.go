@@ -22,25 +22,21 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
-	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	//clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	//etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
 )
 
 // EtcdadmClusterReconciler reconciles a EtcdadmCluster object
@@ -191,43 +187,6 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 		return r.scaleDownEtcdCluster(ctx, etcdCluster, cluster, ep, collections.Machines{})
 	}
 
-	return ctrl.Result{}, nil
-}
-
-func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, failureDomain *string) (ctrl.Result, error) {
-	// Since the cloned resource should eventually have a controller ref for the Machine, we create an
-	// OwnerReference here without the Controller field set
-	infraCloneOwner := &metav1.OwnerReference{
-		APIVersion: etcdv1.GroupVersion.String(),
-		Kind:       "EtcdadmCluster",
-		Name:       ec.Name,
-		UID:        ec.UID,
-	}
-
-	// Clone the infrastructure template
-	infraRef, err := external.CloneTemplate(ctx, &external.CloneTemplateInput{
-		Client:      r.Client,
-		TemplateRef: &ec.Spec.InfrastructureTemplate,
-		Namespace:   ec.Namespace,
-		OwnerRef:    infraCloneOwner,
-		ClusterName: cluster.Name,
-		Labels:      EtcdLabelsForCluster(cluster.Name),
-	})
-
-	r.Log.Info(fmt.Sprintf("Is infraRef nil?: %v", infraRef == nil))
-	if infraRef == nil {
-		return ctrl.Result{}, fmt.Errorf("infraRef is nil")
-	}
-
-	bootstrapRef, err := r.generateEtcdadmConfig(ctx, ec, cluster)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	if err := r.generateMachine(ctx, ec, cluster, infraRef, bootstrapRef, failureDomain); err != nil {
-		r.Log.Error(err, "Failed to create initial etcd machine")
-		return ctrl.Result{}, err
-	}
 	return ctrl.Result{}, nil
 }
 

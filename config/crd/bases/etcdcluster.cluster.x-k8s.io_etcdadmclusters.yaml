@@ -154,13 +154,13 @@ spec:
           status:
             description: EtcdadmClusterStatus defines the observed state of EtcdadmCluster
             properties:
+              creationComplete:
+                type: boolean
               endpoint:
                 type: string
               initMachineAddress:
                 type: string
               initialized:
-                type: boolean
-              ready:
                 type: boolean
               replicas:
                 description: Total number of non-terminated machines targeted by this
