@@ -23,13 +23,13 @@ import (
 
 	"github.com/go-logr/logr"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
-	"github.com/mrajashree/etcdadm-controller/util/collections"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -136,7 +136,7 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
 	log := r.Log
 	var desiredReplicas int
-	etcdMachines, err := collections.GetFilteredMachinesForCluster(ctx, r.Client, cluster, collections.EtcdClusterMachines(cluster.Name))
+	etcdMachines, err := collections.GetMachinesForCluster(ctx, r.Client, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name))
 	if err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "Error filtering machines for etcd cluster")
 	}
@@ -186,7 +186,7 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 	case numCurrentMachines > desiredReplicas:
 		log.Info("Scaling down etcd cluster", "Desired", desiredReplicas, "Existing", numCurrentMachines)
 		// The last parameter corresponds to Machines that need to be rolled out, eg during upgrade, should always be empty here.
-		return r.scaleDownEtcdCluster(ctx, etcdCluster, cluster, ep, collections.Machines{})
+		return r.scaleDownEtcdCluster(ctx, etcdCluster, cluster, ep, collections.FilterableMachineCollection{})
 	}
 
 	return ctrl.Result{}, nil

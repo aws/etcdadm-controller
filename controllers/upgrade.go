@@ -4,8 +4,8 @@ import (
 	"context"
 
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
-	"github.com/mrajashree/etcdadm-controller/util/collections"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	"sigs.k8s.io/cluster-api/util/collections"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -13,7 +13,7 @@ func (r *EtcdadmClusterReconciler) upgradeEtcdCluster(ctx context.Context,
 	cluster *clusterv1.Cluster,
 	ec *etcdv1.EtcdadmCluster,
 	ep *EtcdPlane,
-	machinesToUpgrade collections.Machines,
+	machinesToUpgrade collections.FilterableMachineCollection,
 ) (ctrl.Result, error) {
 	log := r.Log
 	if int32(ep.Machines.Len()) == *ec.Spec.Replicas {

@@ -6,7 +6,6 @@ import (
 
 	etcdbpv1alpha4 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
-	"github.com/mrajashree/etcdadm-controller/util/collections"
 	"github.com/pkg/errors"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -15,6 +14,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/controllers/external"
+	"sigs.k8s.io/cluster-api/util/collections"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -129,7 +129,7 @@ func (r *EtcdadmClusterReconciler) changeClusterInitAddress(ctx context.Context,
 		// This can happen during an upgrade if the first node picked for scale down is the init node
 		// Get the address from any of the other machines
 		r.Log.Info("First machine picked during upgrade scale down is init machine, so replacing with one of the existing machines")
-		for _, m := range ep.Machines.Difference(collections.FromMachines(machineToDelete)) {
+		for _, m := range ep.Machines.Difference(collections.NewFilterableMachineCollection(machineToDelete)) {
 			newInitAddress = getEtcdMachineAddress(m)
 			r.Log.Info(fmt.Sprintf("Picking non updated machine: %v", newInitAddress))
 			break

@@ -8,11 +8,11 @@ import (
 	"time"
 
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
-	"github.com/mrajashree/etcdadm-controller/util/collections"
 	"github.com/pkg/errors"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	"sigs.k8s.io/cluster-api/util/collections"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/etcdadm/constants"
 )
@@ -31,7 +31,7 @@ func (r *EtcdadmClusterReconciler) scaleUpEtcdCluster(ctx context.Context, ec *e
 	return r.cloneConfigsAndGenerateMachine(ctx, ec, cluster, fd)
 }
 
-func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane, outdatedMachines collections.Machines) (ctrl.Result, error) {
+func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane, outdatedMachines collections.FilterableMachineCollection) (ctrl.Result, error) {
 	// Pick the Machine that we should scale down.
 	machineToDelete, err := selectMachineForScaleDown(ep, outdatedMachines)
 	if err != nil || machineToDelete == nil {

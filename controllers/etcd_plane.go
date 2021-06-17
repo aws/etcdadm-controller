@@ -2,17 +2,19 @@ package controllers
 
 import (
 	"context"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"reflect"
 
 	etcdbpv1alpha3 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
-	"github.com/mrajashree/etcdadm-controller/util/collections"
-	"github.com/mrajashree/etcdadm-controller/util/failuredomains"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/controllers/external"
+	"sigs.k8s.io/cluster-api/util/collections"
+	"sigs.k8s.io/cluster-api/util/failuredomains"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -20,14 +22,14 @@ import (
 type EtcdPlane struct {
 	EC                   *etcdv1.EtcdadmCluster
 	Cluster              *clusterv1.Cluster
-	Machines             collections.Machines
+	Machines             collections.FilterableMachineCollection
 	machinesPatchHelpers map[string]*patch.Helper
 
 	etcdadmConfigs map[string]*etcdbpv1alpha3.EtcdadmConfig
 	infraResources map[string]*unstructured.Unstructured
 }
 
-func NewEtcdPlane(ctx context.Context, client client.Client, cluster *clusterv1.Cluster, ec *etcdv1.EtcdadmCluster, ownedMachines collections.Machines) (*EtcdPlane, error) {
+func NewEtcdPlane(ctx context.Context, client client.Client, cluster *clusterv1.Cluster, ec *etcdv1.EtcdadmCluster, ownedMachines collections.FilterableMachineCollection) (*EtcdPlane, error) {
 	infraObjects, err := getInfraResources(ctx, client, ownedMachines)
 	if err != nil {
 		return nil, err
@@ -55,7 +57,7 @@ func NewEtcdPlane(ctx context.Context, client client.Client, cluster *clusterv1.
 	}, nil
 }
 
-func selectMachineForScaleDown(ep *EtcdPlane, outdatedMachines collections.Machines) (*clusterv1.Machine, error) {
+func selectMachineForScaleDown(ep *EtcdPlane, outdatedMachines collections.FilterableMachineCollection) (*clusterv1.Machine, error) {
 	machines := ep.Machines
 	switch {
 	case ep.MachineWithDeleteAnnotation(outdatedMachines).Len() > 0:
@@ -69,7 +71,7 @@ func selectMachineForScaleDown(ep *EtcdPlane, outdatedMachines collections.Machi
 }
 
 // MachineWithDeleteAnnotation returns a machine that has been annotated with DeleteMachineAnnotation key.
-func (ep *EtcdPlane) MachineWithDeleteAnnotation(machines collections.Machines) collections.Machines {
+func (ep *EtcdPlane) MachineWithDeleteAnnotation(machines collections.FilterableMachineCollection) collections.FilterableMachineCollection {
 	// See if there are any machines with DeleteMachineAnnotation key.
 	annotatedMachines := machines.Filter(collections.HasAnnotationKey(clusterv1.DeleteMachineAnnotation))
 	// If there are, return list of annotated machines.
@@ -77,7 +79,7 @@ func (ep *EtcdPlane) MachineWithDeleteAnnotation(machines collections.Machines) 
 }
 
 // FailureDomainWithMostMachines returns a fd which has the most machines on it.
-func (ep *EtcdPlane) FailureDomainWithMostMachines(machines collections.Machines) *string {
+func (ep *EtcdPlane) FailureDomainWithMostMachines(machines collections.FilterableMachineCollection) *string {
 	// See if there are any Machines that are not in currently defined failure domains first.
 	notInFailureDomains := machines.Filter(
 		collections.Not(collections.InFailureDomains(ep.FailureDomains().GetIDs()...)),
@@ -92,7 +94,7 @@ func (ep *EtcdPlane) FailureDomainWithMostMachines(machines collections.Machines
 }
 
 // MachineInFailureDomainWithMostMachines returns the first matching failure domain with machines that has the most control-plane machines on it.
-func (ep *EtcdPlane) MachineInFailureDomainWithMostMachines(machines collections.Machines) (*clusterv1.Machine, error) {
+func (ep *EtcdPlane) MachineInFailureDomainWithMostMachines(machines collections.FilterableMachineCollection) (*clusterv1.Machine, error) {
 	fd := ep.FailureDomainWithMostMachines(machines)
 	machinesInFailureDomain := machines.Filter(collections.InFailureDomains(fd))
 	machineToMark := machinesInFailureDomain.Oldest()
@@ -120,12 +122,12 @@ func (ep *EtcdPlane) FailureDomains() clusterv1.FailureDomains {
 
 // UpToDateMachines returns the machines that are up to date with the control
 // plane's configuration and therefore do not require rollout.
-func (ep *EtcdPlane) UpToDateMachines() collections.Machines {
+func (ep *EtcdPlane) UpToDateMachines() collections.FilterableMachineCollection {
 	return ep.Machines.Difference(ep.MachinesNeedingRollout())
 }
 
 // MachinesNeedingRollout return a list of machines that need to be rolled out.
-func (ep *EtcdPlane) MachinesNeedingRollout() collections.Machines {
+func (ep *EtcdPlane) MachinesNeedingRollout() collections.FilterableMachineCollection {
 	// Ignore machines to be deleted.
 	machines := ep.Machines.Filter(collections.Not(collections.HasDeletionTimestamp))
 
@@ -194,7 +196,7 @@ func MatchesTemplateClonedFrom(infraConfigs map[string]*unstructured.Unstructure
 }
 
 // getInfraResources fetches the external infrastructure resource for each machine in the collection and returns a map of machine.Name -> infraResource.
-func getInfraResources(ctx context.Context, cl client.Client, machines collections.Machines) (map[string]*unstructured.Unstructured, error) {
+func getInfraResources(ctx context.Context, cl client.Client, machines collections.FilterableMachineCollection) (map[string]*unstructured.Unstructured, error) {
 	result := map[string]*unstructured.Unstructured{}
 	for _, m := range machines {
 		infraObj, err := external.Get(ctx, cl, &m.Spec.InfrastructureRef, m.Namespace)
@@ -210,7 +212,7 @@ func getInfraResources(ctx context.Context, cl client.Client, machines collectio
 }
 
 // getEtcdadmConfigs fetches the etcdadm config for each machine in the collection and returns a map of machine.Name -> EtcdadmConfig.
-func getEtcdadmConfigs(ctx context.Context, cl client.Client, machines collections.Machines) (map[string]*etcdbpv1alpha3.EtcdadmConfig, error) {
+func getEtcdadmConfigs(ctx context.Context, cl client.Client, machines collections.FilterableMachineCollection) (map[string]*etcdbpv1alpha3.EtcdadmConfig, error) {
 	result := map[string]*etcdbpv1alpha3.EtcdadmConfig{}
 	for _, m := range machines {
 		bootstrapRef := m.Spec.Bootstrap.ConfigRef
@@ -227,4 +229,30 @@ func getEtcdadmConfigs(ctx context.Context, cl client.Client, machines collectio
 		result[m.Name] = machineConfig
 	}
 	return result, nil
+}
+
+// EtcdPlaneSelectorForCluster returns the label selector necessary to get etcd machines for a given cluster.
+func EtcdPlaneSelectorForCluster(clusterName string) labels.Selector {
+	must := func(r *labels.Requirement, err error) labels.Requirement {
+		if err != nil {
+			panic(err)
+		}
+		return *r
+	}
+	return labels.NewSelector().Add(
+		must(labels.NewRequirement(clusterv1.ClusterLabelName, selection.Equals, []string{clusterName})),
+		must(labels.NewRequirement(clusterv1.MachineEtcdClusterLabelName, selection.Exists, []string{})),
+	)
+}
+
+// EtcdClusterMachines returns a filter to find all control plane machines for a cluster, regardless of ownership.
+// Usage: GetFilteredMachinesForCluster(ctx, client, cluster, ControlPlaneMachines(cluster.Name)).
+func EtcdClusterMachines(clusterName string) func(machine *clusterv1.Machine) bool {
+	selector := EtcdPlaneSelectorForCluster(clusterName)
+	return func(machine *clusterv1.Machine) bool {
+		if machine == nil {
+			return false
+		}
+		return selector.Matches(labels.Set(machine.Labels))
+	}
 }
