@@ -3,6 +3,11 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
+	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/patch"
+	"strings"
 
 	etcdbpv1alpha4 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
@@ -18,6 +23,31 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// EtcdPlaneSelectorForCluster returns the label selector necessary to get etcd machines for a given cluster.
+func EtcdPlaneSelectorForCluster(clusterName string) labels.Selector {
+	must := func(r *labels.Requirement, err error) labels.Requirement {
+		if err != nil {
+			panic(err)
+		}
+		return *r
+	}
+	return labels.NewSelector().Add(
+		must(labels.NewRequirement(clusterv1.ClusterLabelName, selection.Equals, []string{clusterName})),
+		must(labels.NewRequirement(clusterv1.MachineEtcdClusterLabelName, selection.Exists, []string{})),
+	)
+}
+
+// EtcdClusterMachines returns a filter to find all etcd machines for a cluster, regardless of ownership.
+func EtcdClusterMachines(clusterName string) func(machine *clusterv1.Machine) bool {
+	selector := EtcdPlaneSelectorForCluster(clusterName)
+	return func(machine *clusterv1.Machine) bool {
+		if machine == nil {
+			return false
+		}
+		return selector.Matches(labels.Set(machine.Labels))
+	}
+}
 
 func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, failureDomain *string) (ctrl.Result, error) {
 	// Since the cloned resource should eventually have a controller ref for the Machine, we create an
@@ -39,9 +69,8 @@ func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Co
 		Labels:      EtcdLabelsForCluster(cluster.Name),
 	})
 
-	r.Log.Info(fmt.Sprintf("Is infraRef nil?: %v", infraRef == nil))
-	if infraRef == nil {
-		return ctrl.Result{}, fmt.Errorf("infraRef is nil")
+	if err != nil || infraRef == nil {
+		return ctrl.Result{}, fmt.Errorf("infrastructure template could not be cloned for etcd machine")
 	}
 
 	bootstrapRef, err := r.generateEtcdadmConfig(ctx, ec, cluster)
@@ -190,4 +219,32 @@ func stringSlicesEqual(l, r []string) bool {
 		}
 	}
 	return true
+}
+
+// Logic & implementation similar to KCP controller reconciling external MachineTemplate InfrastrucutureReference https://github.com/kubernetes-sigs/cluster-api/blob/master/controlplane/kubeadm/controllers/helpers.go#L123:41
+func (r *EtcdadmClusterReconciler) reconcileExternalReference(ctx context.Context, cluster *clusterv1.Cluster, ref corev1.ObjectReference) error {
+	if !strings.HasSuffix(ref.Kind, external.TemplateSuffix) {
+		return nil
+	}
+
+	obj, err := external.Get(ctx, r.Client, &ref, cluster.Namespace)
+	if err != nil {
+		return err
+	}
+
+	// Note: We intentionally do not handle checking for the paused label on an external template reference
+
+	patchHelper, err := patch.NewHelper(obj, r.Client)
+	if err != nil {
+		return err
+	}
+
+	obj.SetOwnerReferences(util.EnsureOwnerRef(obj.GetOwnerReferences(), metav1.OwnerReference{
+		APIVersion: clusterv1.GroupVersion.String(),
+		Kind:       "Cluster",
+		Name:       cluster.Name,
+		UID:        cluster.UID,
+	}))
+
+	return patchHelper.Patch(ctx, obj)
 }

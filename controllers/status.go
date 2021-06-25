@@ -16,8 +16,8 @@ import (
 )
 
 func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) error {
-	log := r.Log
-	log.Info("update status is called")
+	log := r.Log.WithName(ec.Name)
+	log.Info("Updating etcd cluster status")
 	selector := EtcdPlaneSelectorForCluster(cluster.Name)
 	// Copy label selector to its status counterpart in string format.
 	// This is necessary for CRDs including scale subresources.
@@ -28,25 +28,21 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 		return errors.Wrap(err, "Error filtering machines for etcd cluster")
 	}
 	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(ec))
-	log.Info("following machines owned by this etcd cluster:")
-	for _, machine := range ownedMachines {
-		fmt.Printf("%s ", machine.Name)
-	}
+	log.Info(fmt.Sprintf("following machines are owned by this etcd cluster: %v", ownedMachines.Names()))
 
 	desiredReplicas := *ec.Spec.Replicas
 
-	// set basic data that does not require interacting with the workload cluster
-	ec.Status.ReadyReplicas = int32(len(ownedMachines))
+	log.Info(fmt.Sprintf("ready replicas for etcd cluster %v: %v", ec.Name, ec.Status.ReadyReplicas))
 
-	// Return early if the deletion timestamp is set, because we don't want to try to connect to the workload cluster
-	// and we don't want to report resize condition (because it is set to deleting into reconcile delete).
 	if !ec.DeletionTimestamp.IsZero() {
 		return nil
 	}
 
 	if ec.Status.ReadyReplicas == desiredReplicas {
+		log.Info("Performing endpoint healthcheck and updating fields")
 		var endpoint string
 		for _, m := range ownedMachines {
+			log.Info(fmt.Sprintf("Performing healthcheck for machine %v", m.Name))
 			if len(m.Status.Addresses) == 0 {
 				return nil
 			}

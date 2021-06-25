@@ -56,12 +56,14 @@ func (r *EtcdadmClusterReconciler) generateCAandClientCertSecrets(ctx context.Co
 	if err != nil {
 		return fmt.Errorf("failure while creating %q etcd client key and certificate: %v", commonName, err)
 	}
+
 	apiServerClientCertKeyPair := secret.Certificate{
 		Purpose: secret.APIServerEtcdClient,
 		KeyPair: &certs.KeyPair{
 			Cert: certs.EncodeCertPEM(apiClientCert),
 			Key:  certs.EncodePrivateKeyPEM(apiClientKey),
 		},
+		Generated: true,
 	}
 	s := apiServerClientCertKeyPair.AsSecret(client.ObjectKey{Name: cluster.Name, Namespace: cluster.Namespace}, *metav1.NewControllerRef(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdadmCluster")))
 	if err := r.Client.Create(ctx, s); err != nil && !apierrors.IsAlreadyExists(err) {
@@ -77,6 +79,7 @@ func (r *EtcdadmClusterReconciler) generateCAandClientCertSecrets(ctx context.Co
 			Labels: map[string]string{
 				clusterv1.ClusterLabelName: cluster.Name,
 			},
+			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdadmCluster"))},
 		},
 		Data: map[string][]byte{
 			secret.TLSCrtDataName: caCertKey.KeyPair.Cert,

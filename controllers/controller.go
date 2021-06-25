@@ -19,6 +19,8 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"sigs.k8s.io/cluster-api/util/predicates"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -29,22 +31,50 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/patch"
-	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // EtcdadmClusterReconciler reconciles a EtcdadmCluster object
 type EtcdadmClusterReconciler struct {
 	controller controller.Controller
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	uncachedClient client.Reader
+	Log            logr.Logger
+	Scheme         *runtime.Scheme
+}
+
+func (r *EtcdadmClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	c, err := ctrl.NewControllerManagedBy(mgr).
+		For(&etcdv1.EtcdadmCluster{}).
+		Owns(&clusterv1.Machine{}).
+		WithEventFilter(predicates.ResourceNotPaused(r.Log)).
+		Build(r)
+
+	if err != nil {
+		return errors.Wrap(err, "failed setting up with a controller manager")
+	}
+
+	err = c.Watch(
+		&source.Kind{Type: &clusterv1.Cluster{}},
+		&handler.EnqueueRequestsFromMapFunc{
+			ToRequests: handler.ToRequestsFunc(r.ClusterToEtcdadmCluster),
+		},
+		predicates.ClusterUnpaused(r.Log),
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed adding Watch for Clusters to controller manager")
+	}
+
+	r.controller = c
+	r.uncachedClient = mgr.GetAPIReader()
+
+	return nil
 }
 
 // +kubebuilder:rbac:groups=etcdcluster.cluster.x-k8s.io,resources=etcdadmclusters,verbs=get;list;watch;create;update;patch;delete
@@ -75,7 +105,10 @@ func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result,
 		return ctrl.Result{}, nil
 	}
 
-	// TODO: add paused check
+	if annotations.IsPaused(cluster, etcdCluster) {
+		log.Info("Reconciliation is paused for this object")
+		return ctrl.Result{}, nil
+	}
 
 	// Initialize the patch helper.
 	patchHelper, err := patch.NewHelper(etcdCluster, r.Client)
@@ -107,41 +140,28 @@ func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result,
 	return r.reconcile(ctx, etcdCluster, cluster)
 }
 
-func (r *EtcdadmClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	c, err := ctrl.NewControllerManagedBy(mgr).
-		For(&etcdv1.EtcdadmCluster{}).
-		Owns(&clusterv1.Machine{}).
-		Build(r)
-
-	if err != nil {
-		return errors.Wrap(err, "failed setting up with a controller manager")
-	}
-
-	err = c.Watch(
-		&source.Kind{Type: &clusterv1.Cluster{}},
-		&handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(r.ClusterToEtcdadmCluster),
-		},
-		predicates.ClusterUnpausedAndInfrastructureReady(r.Log),
-	)
-	if err != nil {
-		return errors.Wrap(err, "failed adding Watch for Clusters to controller manager")
-	}
-
-	r.controller = c
-
-	return nil
-}
-
 func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
-	log := r.Log
+	log := r.Log.WithName(etcdCluster.Name)
 	var desiredReplicas int
-	etcdMachines, err := collections.GetMachinesForCluster(ctx, r.Client, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name))
+
+	// Make sure to reconcile the external infrastructure reference.
+	if err := r.reconcileExternalReference(ctx, cluster, etcdCluster.Spec.InfrastructureTemplate); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	etcdMachines, err := collections.GetMachinesForCluster(ctx, r.uncachedClient, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name))
 	if err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "Error filtering machines for etcd cluster")
 	}
 
 	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster))
+	log.Info(fmt.Sprintf("found following machines owned by etcd cluster: %v", ownedMachines.Names()))
+
+	// TODO: remove this check if not needed
+	if len(ownedMachines) != len(etcdMachines) {
+		log.Info("Not all etcd machines are owned by this EtcdadmCluster")
+		return ctrl.Result{}, nil
+	}
 
 	ep, err := NewEtcdPlane(ctx, r.Client, cluster, etcdCluster, ownedMachines)
 	if err != nil {
