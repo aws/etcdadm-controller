@@ -18,7 +18,7 @@ import (
 func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) error {
 	log := r.Log.WithName(ec.Name)
 	log.Info("Updating etcd cluster status")
-	selector := EtcdPlaneSelectorForCluster(cluster.Name)
+	selector := EtcdMachinesSelectorForCluster(cluster.Name)
 	// Copy label selector to its status counterpart in string format.
 	// This is necessary for CRDs including scale subresources.
 	ec.Status.Selector = selector.String()

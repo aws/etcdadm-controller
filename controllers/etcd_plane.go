@@ -55,6 +55,7 @@ func NewEtcdPlane(ctx context.Context, client client.Client, cluster *clusterv1.
 	}, nil
 }
 
+// Etcdadm controller follows the same logic for selecting a machine to scale down as the KCP controller. Source: https://github.com/kubernetes-sigs/cluster-api/blob/master/controlplane/kubeadm/controllers/scale.go#L234
 func selectMachineForScaleDown(ep *EtcdPlane, outdatedMachines collections.FilterableMachineCollection) (*clusterv1.Machine, error) {
 	machines := ep.Machines
 	switch {

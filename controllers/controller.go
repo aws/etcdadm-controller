@@ -19,8 +19,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"sigs.k8s.io/cluster-api/util/predicates"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -33,11 +31,14 @@ import (
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/collections"
+	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/patch"
+	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // EtcdadmClusterReconciler reconciles a EtcdadmCluster object
@@ -94,7 +95,7 @@ func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result,
 		return ctrl.Result{}, err
 	}
 
-	// Fetch the Cluster.
+	// Fetch the CAPI Cluster.
 	cluster, err := util.GetOwnerCluster(ctx, r.Client, etcdCluster.ObjectMeta)
 	if err != nil {
 		log.Error(err, "Failed to retrieve owner Cluster from the API Server")
@@ -144,7 +145,7 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 	log := r.Log.WithName(etcdCluster.Name)
 	var desiredReplicas int
 
-	// Make sure to reconcile the external infrastructure reference.
+	// Reconcile the external infrastructure reference.
 	if err := r.reconcileExternalReference(ctx, cluster, etcdCluster.Spec.InfrastructureTemplate); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -165,7 +166,7 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 
 	ep, err := NewEtcdPlane(ctx, r.Client, cluster, etcdCluster, ownedMachines)
 	if err != nil {
-		return ctrl.Result{}, errors.Wrap(err, "Error initializing internal Etcd Cluster")
+		return ctrl.Result{}, errors.Wrap(err, "Error initializing internal object EtcdPlane")
 	}
 
 	numCurrentMachines := len(ownedMachines)
@@ -180,15 +181,15 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 	switch {
 	case len(needRollout) > 0:
 		log.Info("Rolling out Etcd machines", "needRollout", needRollout.Names())
-		//conditions.MarkFalse(controlPlane.KCP, controlplanev1.MachinesSpecUpToDateCondition, controlplanev1.RollingUpdateInProgressReason, clusterv1.ConditionSeverityWarning, "Rolling %d replicas with outdated spec (%d replicas up to date)", len(needRollout), len(controlPlane.Machines)-len(needRollout))
+		conditions.MarkFalse(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition, etcdv1.EtcdRollingUpdateInProgressReason, clusterv1.ConditionSeverityWarning, "Rolling %d replicas with outdated spec (%d replicas up to date)", len(needRollout), len(ep.Machines)-len(needRollout))
 		return r.upgradeEtcdCluster(ctx, cluster, etcdCluster, ep, needRollout)
 	default:
 		// make sure last upgrade operation is marked as completed.
 		// NOTE: we are checking the condition already exists in order to avoid to set this condition at the first
 		// reconciliation/before a rolling upgrade actually starts.
-		//if conditions.Has(controlPlane.KCP, controlplanev1.MachinesSpecUpToDateCondition) {
-		//	conditions.MarkTrue(controlPlane.KCP, controlplanev1.MachinesSpecUpToDateCondition)
-		//}
+		if conditions.Has(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition) {
+			conditions.MarkTrue(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition)
+		}
 	}
 
 	switch {
@@ -230,29 +231,21 @@ func (r *EtcdadmClusterReconciler) ClusterToEtcdadmCluster(o handler.MapObject) 
 
 func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1.EtcdadmCluster) error {
 	// Always update the readyCondition by summarizing the state of other conditions.
-	//conditions.SetSummary(ec,
-	//	conditions.WithConditions(
-	//		controlplanev1.MachinesCreatedCondition,
-	//		controlplanev1.MachinesSpecUpToDateCondition,
-	//		controlplanev1.ResizedCondition,
-	//		controlplanev1.MachinesReadyCondition,
-	//		controlplanev1.AvailableCondition,
-	//		controlplanev1.CertificatesAvailableCondition,
-	//	),
-	//)
+	conditions.SetSummary(ec,
+		conditions.WithConditions(
+			etcdv1.EtcdMachinesSpecUpToDateCondition,
+			etcdv1.EtcdCertificatesAvailableCondition,
+		),
+	)
 
 	// Patch the object, ignoring conflicts on the conditions owned by this controller.
 	return patchHelper.Patch(
 		ctx,
 		ec,
 		patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
-			//controlplanev1.MachinesCreatedCondition,
 			clusterv1.ReadyCondition,
-			//controlplanev1.MachinesSpecUpToDateCondition,
-			//controlplanev1.ResizedCondition,
-			//controlplanev1.MachinesReadyCondition,
-			//controlplanev1.AvailableCondition,
-			//controlplanev1.CertificatesAvailableCondition,
+			etcdv1.EtcdMachinesSpecUpToDateCondition,
+			etcdv1.EtcdCertificatesAvailableCondition,
 		}},
 		patch.WithStatusObservedGeneration{},
 	)

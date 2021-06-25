@@ -20,11 +20,12 @@ import (
 	"sigs.k8s.io/cluster-api/util/secret"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/etcdadm/certs/pkiutil"
+	"sigs.k8s.io/etcdadm/constants"
 )
 
 func (r *EtcdadmClusterReconciler) generateCAandClientCertSecrets(ctx context.Context, cluster *clusterv1.Cluster, etcdCluster *etcdv1.EtcdadmCluster) error {
 	log := r.Log
-	// now generate api server client certs using the CA cert
+	// Generate external etcd CA cert + key pair
 	CACertKeyPair := etcdCACertKeyPair()
 	err := CACertKeyPair.LookupOrGenerate(
 		ctx,
@@ -34,22 +35,25 @@ func (r *EtcdadmClusterReconciler) generateCAandClientCertSecrets(ctx context.Co
 	)
 	caCertKey := CACertKeyPair.GetByPurpose(secret.ManagedExternalEtcdCA)
 
+	// Use the generated CA cert+key pair to generate and sign etcd client cert+key pair
 	caCertDecoded, _ := pem.Decode(caCertKey.KeyPair.Cert)
 	caCert, err := x509.ParseCertificate(caCertDecoded.Bytes)
 	if err != nil {
-		log.Error(err, "Failed to parse CA cert")
+		log.Error(err, "Failed to parse etcd CA cert")
 		return err
 	}
 	caKeyDecoded, _ := pem.Decode(caCertKey.KeyPair.Key)
 	caKey, err := x509.ParsePKCS1PrivateKey(caKeyDecoded.Bytes)
 	if err != nil {
-		log.Error(err, "Failed to parse CA key")
+		log.Error(err, "Failed to parse etcd CA key")
 		return err
 	}
+
 	commonName := fmt.Sprintf("%s-kube-apiserver-etcd-client", cluster.Name)
+	// This certConfig is what etcdadm uses to generate client certs https://github.com/kubernetes-sigs/etcdadm/blob/master/certs/certs.go#L233
 	certConfig := certutil.Config{
 		CommonName:   commonName,
-		Organization: []string{"system:masters"}, // from etcdadm repo
+		Organization: []string{constants.MastersGroup},
 		Usages:       []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
 	}
 	apiClientCert, apiClientKey, err := pkiutil.NewCertAndKey(caCert, caKey, certConfig)
@@ -57,6 +61,8 @@ func (r *EtcdadmClusterReconciler) generateCAandClientCertSecrets(ctx context.Co
 		return fmt.Errorf("failure while creating %q etcd client key and certificate: %v", commonName, err)
 	}
 
+	// Now generate two Secrets, one containing the client cert+key pair and other containing the etcd CA cert. Ech control plane provider should
+	// use these two Secrets for communicating with etcd.
 	apiServerClientCertKeyPair := secret.Certificate{
 		Purpose: secret.APIServerEtcdClient,
 		KeyPair: &certs.KeyPair{

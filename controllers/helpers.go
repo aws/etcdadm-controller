@@ -3,10 +3,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
-	"sigs.k8s.io/cluster-api/util"
-	"sigs.k8s.io/cluster-api/util/patch"
 	"strings"
 
 	etcdbpv1alpha4 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
@@ -16,16 +12,20 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apiserver/pkg/storage/names"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/controllers/external"
+	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/collections"
+	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// EtcdPlaneSelectorForCluster returns the label selector necessary to get etcd machines for a given cluster.
-func EtcdPlaneSelectorForCluster(clusterName string) labels.Selector {
+// EtcdMachinesSelectorForCluster returns the label selector necessary to get etcd machines for a given cluster.
+func EtcdMachinesSelectorForCluster(clusterName string) labels.Selector {
 	must := func(r *labels.Requirement, err error) labels.Requirement {
 		if err != nil {
 			panic(err)
@@ -40,12 +40,20 @@ func EtcdPlaneSelectorForCluster(clusterName string) labels.Selector {
 
 // EtcdClusterMachines returns a filter to find all etcd machines for a cluster, regardless of ownership.
 func EtcdClusterMachines(clusterName string) func(machine *clusterv1.Machine) bool {
-	selector := EtcdPlaneSelectorForCluster(clusterName)
+	selector := EtcdMachinesSelectorForCluster(clusterName)
 	return func(machine *clusterv1.Machine) bool {
 		if machine == nil {
 			return false
 		}
 		return selector.Matches(labels.Set(machine.Labels))
+	}
+}
+
+// ControlPlaneLabelsForCluster returns a set of labels to add to a control plane machine for this specific cluster.
+func EtcdLabelsForCluster(clusterName string) map[string]string {
+	return map[string]string{
+		clusterv1.ClusterLabelName:            clusterName,
+		clusterv1.MachineEtcdClusterLabelName: "",
 	}
 }
 
@@ -69,7 +77,10 @@ func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Co
 		Labels:      EtcdLabelsForCluster(cluster.Name),
 	})
 
-	if err != nil || infraRef == nil {
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("error cloning infrastructure template for etcd machine: %v", err)
+	}
+	if infraRef == nil {
 		return ctrl.Result{}, fmt.Errorf("infrastructure template could not be cloned for etcd machine")
 	}
 
@@ -199,6 +210,7 @@ func getEtcdMachineAddress(machine *clusterv1.Machine) string {
 	return machineAddress
 }
 
+// source: https://github.com/kubernetes-sigs/etcdadm/blob/master/etcd/etcd.go#L53:6
 func memberForPeerURLs(members *clientv3.MemberListResponse, peerURLs []string) (*etcdserverpb.Member, bool) {
 	for _, m := range members.Members {
 		if stringSlicesEqual(m.PeerURLs, peerURLs) {

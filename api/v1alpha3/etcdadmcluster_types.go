@@ -20,6 +20,7 @@ import (
 	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -71,6 +72,14 @@ type EtcdadmClusterStatus struct {
 	// More info about label selectors: http://kubernetes.io/docs/user-guide/labels#label-selectors
 	// +optional
 	Selector string `json:"selector,omitempty"`
+
+	// ObservedGeneration is the latest generation observed by the controller.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// Conditions defines current service state of the EtcdadmCluster.
+	// +optional
+	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -82,6 +91,14 @@ type EtcdadmCluster struct {
 
 	Spec   EtcdadmClusterSpec   `json:"spec,omitempty"`
 	Status EtcdadmClusterStatus `json:"status,omitempty"`
+}
+
+func (in *EtcdadmCluster) GetConditions() clusterv1.Conditions {
+	return in.Status.Conditions
+}
+
+func (in *EtcdadmCluster) SetConditions(conditions clusterv1.Conditions) {
+	in.Status.Conditions = conditions
 }
 
 // +kubebuilder:object:root=true
