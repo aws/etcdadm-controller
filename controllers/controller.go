@@ -133,7 +133,7 @@ func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result,
 		}
 
 		if reterr == nil && !res.Requeue && !(res.RequeueAfter > 0) && etcdCluster.ObjectMeta.DeletionTimestamp.IsZero() {
-			if !etcdCluster.Status.CreationComplete {
+			if !etcdCluster.Status.Ready {
 				res = ctrl.Result{RequeueAfter: 20 * time.Second}
 			}
 		}
@@ -233,6 +233,7 @@ func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1
 	// Always update the readyCondition by summarizing the state of other conditions.
 	conditions.SetSummary(ec,
 		conditions.WithConditions(
+			clusterv1.ManagedExternalEtcdClusterReadyCondition,
 			etcdv1.EtcdMachinesSpecUpToDateCondition,
 			etcdv1.EtcdCertificatesAvailableCondition,
 		),
@@ -244,6 +245,7 @@ func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1
 		ec,
 		patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
 			clusterv1.ReadyCondition,
+			clusterv1.ManagedExternalEtcdClusterReadyCondition,
 			etcdv1.EtcdMachinesSpecUpToDateCondition,
 			etcdv1.EtcdCertificatesAvailableCondition,
 		}},

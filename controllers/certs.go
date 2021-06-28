@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"sigs.k8s.io/cluster-api/util/conditions"
 
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
 	"github.com/pkg/errors"
@@ -23,6 +24,10 @@ import (
 	"sigs.k8s.io/etcdadm/constants"
 )
 
+// etcdadm provisioning works as follows:
+// machine one runs etcdadm init, generates CA and client certs
+// CA certs are copied over to remaining nodes to run etcdadm join
+// This provider is going to generate CA cert-key for etcd, and create two Secrets to store CA cert + client cert-key to be used by kube-apiserver
 func (r *EtcdadmClusterReconciler) generateCAandClientCertSecrets(ctx context.Context, cluster *clusterv1.Cluster, etcdCluster *etcdv1.EtcdadmCluster) error {
 	log := r.Log
 	// Generate external etcd CA cert + key pair
@@ -97,6 +102,7 @@ func (r *EtcdadmClusterReconciler) generateCAandClientCertSecrets(ctx context.Co
 	}
 
 	log.Info("Saved etcd ca cert as secret")
+	conditions.MarkTrue(etcdCluster, etcdv1.EtcdCertificatesAvailableCondition)
 	return nil
 }
 

@@ -13,6 +13,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/collections"
+	"sigs.k8s.io/cluster-api/util/conditions"
 )
 
 func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) error {
@@ -31,6 +32,7 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	log.Info(fmt.Sprintf("following machines are owned by this etcd cluster: %v", ownedMachines.Names()))
 
 	desiredReplicas := *ec.Spec.Replicas
+	ec.Status.ReadyReplicas = int32(len(ownedMachines))
 
 	log.Info(fmt.Sprintf("ready replicas for etcd cluster %v: %v", ec.Name, ec.Status.ReadyReplicas))
 
@@ -54,11 +56,13 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 		}
 		log.Info(fmt.Sprintf("running endpoint checks on %v", endpoint))
 		if err := r.doEtcdHealthCheck(ctx, cluster, endpoint); err != nil {
+			conditions.MarkFalse(ec, clusterv1.ManagedExternalEtcdClusterReadyCondition, clusterv1.EtcdHealthCheckFailedReason, clusterv1.ConditionSeverityError, fmt.Sprintf("Etcd member failed healthcheck with error: %v", err))
 			return err
 		}
 		// etcd ready when all machines have address set
-		ec.Status.CreationComplete = true
+		ec.Status.Ready = true
 		ec.Status.Endpoint = endpoint
+		conditions.MarkTrue(ec, clusterv1.ManagedExternalEtcdClusterReadyCondition)
 	}
 	return nil
 }
