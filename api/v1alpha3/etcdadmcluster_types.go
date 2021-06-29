@@ -32,9 +32,6 @@ type EtcdadmClusterSpec struct {
 
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// +optional
-	Version string `json:"version,omitempty"`
-
 	// InfrastructureTemplate is a required reference to a custom resource
 	// offered by an infrastructure provider.
 	InfrastructureTemplate corev1.ObjectReference `json:"infrastructureTemplate"`

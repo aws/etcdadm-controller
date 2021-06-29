@@ -38,6 +38,10 @@ spec:
               etcdadmConfigSpec:
                 description: EtcdadmConfigSpec defines the desired state of EtcdadmConfig
                 properties:
+                  etcdReleaseURL:
+                    description: EtcdReleaseURL is an optional field to specify where
+                      etcdadm can download etcd from
+                    type: string
                   postEtcdadmCommands:
                     description: PostEtcdadmCommands specifies extra commands to run
                       after kubeadm runs
@@ -145,8 +149,6 @@ spec:
               replicas:
                 format: int32
                 type: integer
-              version:
-                type: string
             required:
             - infrastructureTemplate
             type: object
