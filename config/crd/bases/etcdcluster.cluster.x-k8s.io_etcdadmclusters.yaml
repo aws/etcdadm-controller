@@ -42,6 +42,10 @@ spec:
                     description: EtcdReleaseURL is an optional field to specify where
                       etcdadm can download etcd from
                     type: string
+                  etcdadmInstallCommands:
+                    items:
+                      type: string
+                    type: array
                   postEtcdadmCommands:
                     description: PostEtcdadmCommands specifies extra commands to run
                       after kubeadm runs
