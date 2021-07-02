@@ -290,8 +290,8 @@ github.com/modern-go/reflect2 v1.0.1 h1:9f412s+6RmYXLWZSEzVVgPGK7C2PphHj5RJrvfx9
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/mrajashree/cluster-api v0.3.15-0.20210628204721-ba54587a0e97 h1:FYsvoauzR1XISTHXqvtByd0zQYEcAeYEm3mXqhxZqFQ=
 github.com/mrajashree/cluster-api v0.3.15-0.20210628204721-ba54587a0e97/go.mod h1:1DBZEj6GmcWxe77d8YOeac1JIa8ttP21uTHUlAyji2g=
-github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210630182913-e3c28f91190d h1:enkLXz8ZWGN31eLM8SL4XmMnvbGHKEmWBfGLwKDireM=
-github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210630182913-e3c28f91190d/go.mod h1:LPFfNAreNTbc04u9V4nRKFIkcAV4EUm/JtvTwyuCnCM=
+github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210702005506-fbe5c87edfd2 h1:D/gx/pTpqB7K1zlcVglr+kjaBbWayvLNcug+36s4Qxk=
+github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210702005506-fbe5c87edfd2/go.mod h1:LPFfNAreNTbc04u9V4nRKFIkcAV4EUm/JtvTwyuCnCM=
 github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
