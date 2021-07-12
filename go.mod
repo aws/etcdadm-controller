@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/go-logr/logr v0.1.0
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210702005506-fbe5c87edfd2
+	github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210712174656-3dca39f491ee
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.1
 	github.com/pkg/errors v0.9.1
