@@ -9,6 +9,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+const minEtcdMemberReadySeconds = 150
+
 func (r *EtcdadmClusterReconciler) upgradeEtcdCluster(ctx context.Context,
 	cluster *clusterv1.Cluster,
 	ec *etcdv1.EtcdadmCluster,

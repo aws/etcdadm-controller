@@ -181,6 +181,25 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 	switch {
 	case len(needRollout) > 0:
 		log.Info("Rolling out Etcd machines", "needRollout", needRollout.Names())
+		if conditions.IsFalse(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition) && len(ep.UpToDateMachines()) > 0 {
+			// update is already in progress, some machines have been rolled out with the new spec
+			newestUpToDateMachine := ep.NewestUpToDateMachine()
+			newestUpToDateMachineCreationTime := newestUpToDateMachine.CreationTimestamp.Time
+			nextMachineUpdateTime := newestUpToDateMachineCreationTime.Add(time.Duration(minEtcdMemberReadySeconds) * time.Second)
+			if nextMachineUpdateTime.After(time.Now()) {
+				// the latest machine with updated spec should get more time for etcd data sync
+				// requeue this after
+				after := nextMachineUpdateTime.Sub(time.Now())
+				log.Info("Requeueing etcdadm cluster for updating next machine after %s", after.String())
+				return ctrl.Result{RequeueAfter: after}, nil
+			}
+			// otherwise, if the minimum time to wait between successive machine updates has passed,
+			// check that the latest etcd member is ready
+			address := getEtcdMachineAddress(newestUpToDateMachine)
+			if err := r.doEtcdHealthCheck(ctx, cluster, address); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 		conditions.MarkFalse(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition, etcdv1.EtcdRollingUpdateInProgressReason, clusterv1.ConditionSeverityWarning, "Rolling %d replicas with outdated spec (%d replicas up to date)", len(needRollout), len(ep.Machines)-len(needRollout))
 		return r.upgradeEtcdCluster(ctx, cluster, etcdCluster, ep, needRollout)
 	default:
@@ -230,7 +249,6 @@ func (r *EtcdadmClusterReconciler) ClusterToEtcdadmCluster(o handler.MapObject) 
 }
 
 func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1.EtcdadmCluster) error {
-	// Always update the readyCondition by summarizing the state of other conditions.
 	conditions.SetSummary(ec,
 		conditions.WithConditions(
 			clusterv1.ManagedExternalEtcdClusterReadyCondition,
@@ -239,7 +257,6 @@ func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1
 		),
 	)
 
-	// Patch the object, ignoring conflicts on the conditions owned by this controller.
 	return patchHelper.Patch(
 		ctx,
 		ec,

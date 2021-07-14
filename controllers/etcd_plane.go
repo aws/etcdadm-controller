@@ -125,6 +125,11 @@ func (ep *EtcdPlane) UpToDateMachines() collections.FilterableMachineCollection 
 	return ep.Machines.Difference(ep.MachinesNeedingRollout())
 }
 
+func (ep *EtcdPlane) NewestUpToDateMachine() *clusterv1.Machine {
+	upToDateMachines := ep.UpToDateMachines()
+	return upToDateMachines.Newest()
+}
+
 // MachinesNeedingRollout return a list of machines that need to be rolled out.
 func (ep *EtcdPlane) MachinesNeedingRollout() collections.FilterableMachineCollection {
 	// Ignore machines to be deleted.
