@@ -251,7 +251,6 @@ func (r *EtcdadmClusterReconciler) ClusterToEtcdadmCluster(o handler.MapObject) 
 func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1.EtcdadmCluster) error {
 	conditions.SetSummary(ec,
 		conditions.WithConditions(
-			clusterv1.ManagedExternalEtcdClusterReadyCondition,
 			etcdv1.EtcdMachinesSpecUpToDateCondition,
 			etcdv1.EtcdCertificatesAvailableCondition,
 		),
@@ -262,7 +261,6 @@ func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1
 		ec,
 		patch.WithOwnedConditions{Conditions: []clusterv1.ConditionType{
 			clusterv1.ReadyCondition,
-			clusterv1.ManagedExternalEtcdClusterReadyCondition,
 			etcdv1.EtcdMachinesSpecUpToDateCondition,
 			etcdv1.EtcdCertificatesAvailableCondition,
 		}},

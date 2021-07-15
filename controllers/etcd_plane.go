@@ -77,6 +77,7 @@ func (ep *EtcdPlane) MachineWithDeleteAnnotation(machines collections.Filterable
 	return annotatedMachines
 }
 
+// All functions related to failureDomains follow the same logic as KCP's failureDomain implementation, to leverage existing methods
 // FailureDomainWithMostMachines returns a fd which has the most machines on it.
 func (ep *EtcdPlane) FailureDomainWithMostMachines(machines collections.FilterableMachineCollection) *string {
 	// See if there are any Machines that are not in currently defined failure domains first.
