@@ -40,7 +40,20 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 		return nil
 	}
 
-	if ec.Status.ReadyReplicas == desiredReplicas {
+	readyReplicas := ec.Status.ReadyReplicas
+
+	switch {
+	case readyReplicas < desiredReplicas:
+		conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleUpInProgressReason, clusterv1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
+	case readyReplicas > desiredReplicas:
+		conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleDownInProgressReason, clusterv1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
+	default:
+		if readyReplicas == desiredReplicas {
+			conditions.MarkTrue(ec, etcdv1.EtcdClusterResizeCompleted)
+		}
+	}
+
+	if readyReplicas == desiredReplicas {
 		log.Info("Performing endpoint healthcheck and updating fields")
 		var endpoint string
 		for _, m := range ownedMachines {
@@ -56,13 +69,12 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 		}
 		log.Info(fmt.Sprintf("running endpoint checks on %v", endpoint))
 		if err := r.doEtcdHealthCheck(ctx, cluster, endpoint); err != nil {
-			conditions.MarkFalse(ec, clusterv1.ManagedExternalEtcdClusterReadyCondition, clusterv1.EtcdHealthCheckFailedReason, clusterv1.ConditionSeverityError, fmt.Sprintf("Etcd member failed healthcheck with error: %v", err))
+			ec.Status.Ready = false
 			return err
 		}
 		// etcd ready when all machines have address set
 		ec.Status.Ready = true
 		ec.Status.Endpoint = endpoint
-		conditions.MarkTrue(ec, clusterv1.ManagedExternalEtcdClusterReadyCondition)
 	}
 	return nil
 }

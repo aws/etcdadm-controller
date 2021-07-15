@@ -169,6 +169,9 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 		return ctrl.Result{}, errors.Wrap(err, "Error initializing internal object EtcdPlane")
 	}
 
+	// This aggregates the state of all machines
+	conditions.SetAggregate(etcdCluster, etcdv1.EtcdMachinesReadyCondition, ownedMachines.ConditionGetters(), conditions.AddSourceRef(), conditions.WithStepCounterIf(false))
+
 	numCurrentMachines := len(ownedMachines)
 	if etcdCluster.Spec.Replicas != nil {
 		desiredReplicas = int(*etcdCluster.Spec.Replicas)
@@ -215,11 +218,16 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 	case numCurrentMachines < desiredReplicas && numCurrentMachines == 0:
 		// Create first etcd machine to run etcdadm init
 		log.Info("Initializing etcd cluster", "Desired", desiredReplicas, "Existing", numCurrentMachines)
+		conditions.MarkFalse(etcdCluster, etcdv1.InitializedCondition, etcdv1.WaitingForEtcdadmInitReason, clusterv1.ConditionSeverityInfo, "")
 		return r.intializeEtcdCluster(ctx, etcdCluster, cluster, ep)
 	case numCurrentMachines < desiredReplicas && numCurrentMachines > 0:
 		if !etcdCluster.Status.Initialized {
 			// defer func in Reconcile will requeue it after 20 sec
 			return ctrl.Result{}, nil
+		}
+		// since etcd cluster has been initialized
+		if conditions.IsFalse(etcdCluster, etcdv1.InitializedCondition) {
+			conditions.MarkTrue(etcdCluster, etcdv1.InitializedCondition)
 		}
 		log.Info("Scaling up etcd cluster", "Desired", desiredReplicas, "Existing", numCurrentMachines)
 		return r.scaleUpEtcdCluster(ctx, etcdCluster, cluster, ep)
@@ -249,13 +257,18 @@ func (r *EtcdadmClusterReconciler) ClusterToEtcdadmCluster(o handler.MapObject) 
 }
 
 func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1.EtcdadmCluster) error {
+	// SetSummary sets the Ready condition on an object, in this case the EtcdadmCluster as an aggregate of all conditions defined on EtcdadmCluster
 	conditions.SetSummary(ec,
 		conditions.WithConditions(
 			etcdv1.EtcdMachinesSpecUpToDateCondition,
 			etcdv1.EtcdCertificatesAvailableCondition,
+			etcdv1.EtcdMachinesReadyCondition,
+			etcdv1.EtcdClusterResizeCompleted,
+			etcdv1.InitializedCondition,
 		),
 	)
 
+	// patch the EtcdadmCluster conditions based on current values at the end of every reconcile
 	return patchHelper.Patch(
 		ctx,
 		ec,
@@ -263,6 +276,9 @@ func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1
 			clusterv1.ReadyCondition,
 			etcdv1.EtcdMachinesSpecUpToDateCondition,
 			etcdv1.EtcdCertificatesAvailableCondition,
+			etcdv1.EtcdMachinesReadyCondition,
+			etcdv1.EtcdClusterResizeCompleted,
+			etcdv1.InitializedCondition,
 		}},
 		patch.WithStatusObservedGeneration{},
 	)
