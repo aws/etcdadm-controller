@@ -60,7 +60,7 @@ type EtcdadmClusterStatus struct {
 	Ready bool `json:"ready"`
 
 	// +optional
-	Endpoint string `json:"endpoint"`
+	Endpoints string `json:"endpoints"`
 
 	// Selector is the label selector in string format to avoid introspection
 	// by clients, and is used to provide the CRD-based integration for the

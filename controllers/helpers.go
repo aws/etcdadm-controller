@@ -210,6 +210,14 @@ func getEtcdMachineAddress(machine *clusterv1.Machine) string {
 	return machineAddress
 }
 
+func getMemberClientURL(address string) string {
+	return fmt.Sprintf("https://%s:2379", address)
+}
+
+func getMemberHealthCheckEndpoint(clientURL string) string {
+	return fmt.Sprintf("%s/health", clientURL)
+}
+
 // source: https://github.com/kubernetes-sigs/etcdadm/blob/master/etcd/etcd.go#L53:6
 func memberForPeerURLs(members *clientv3.MemberListResponse, peerURLs []string) (*etcdserverpb.Member, bool) {
 	for _, m := range members.Members {

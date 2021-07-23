@@ -18,6 +18,13 @@ func (r *EtcdadmClusterReconciler) upgradeEtcdCluster(ctx context.Context,
 	machinesToUpgrade collections.FilterableMachineCollection,
 ) (ctrl.Result, error) {
 	log := r.Log
+	if *ec.Spec.Replicas == 1 {
+		// for single node etcd cluster, scale up first followed by a scale down
+		if int32(ep.Machines.Len()) == *ec.Spec.Replicas {
+			return r.scaleUpEtcdCluster(ctx, ec, cluster, ep)
+		}
+		return r.scaleDownEtcdCluster(ctx, ec, cluster, ep, machinesToUpgrade)
+	}
 	if int32(ep.Machines.Len()) == *ec.Spec.Replicas {
 		log.Info("Scaling down etcd cluster")
 		return r.scaleDownEtcdCluster(ctx, ec, cluster, ep, machinesToUpgrade)

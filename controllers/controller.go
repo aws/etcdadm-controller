@@ -45,9 +45,10 @@ import (
 type EtcdadmClusterReconciler struct {
 	controller controller.Controller
 	client.Client
-	uncachedClient client.Reader
-	Log            logr.Logger
-	Scheme         *runtime.Scheme
+	uncachedClient        client.Reader
+	Log                   logr.Logger
+	Scheme                *runtime.Scheme
+	etcdHealthCheckConfig etcdHealthCheckConfig
 }
 
 func (r *EtcdadmClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -80,6 +81,11 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // +kubebuilder:rbac:groups=etcdcluster.cluster.x-k8s.io,resources=etcdadmclusters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=etcdcluster.cluster.x-k8s.io,resources=etcdadmclusters/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;clusters/status,verbs=get;list;watch
+// +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines;machines/status,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=bootstrap.cluster.x-k8s.io,resources=etcdadmconfigs;etcdadmconfigs/status,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=configmaps;events;secrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=*,verbs=get;list;watch;create;update;patch;delete
 
 func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, reterr error) {
 	ctx := context.Background()
@@ -193,13 +199,13 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 				// the latest machine with updated spec should get more time for etcd data sync
 				// requeue this after
 				after := nextMachineUpdateTime.Sub(time.Now())
-				log.Info("Requeueing etcdadm cluster for updating next machine after %s", after.String())
+				log.Info(fmt.Sprintf("Requeueing etcdadm cluster for updating next machine after %s", after.String()))
 				return ctrl.Result{RequeueAfter: after}, nil
 			}
 			// otherwise, if the minimum time to wait between successive machine updates has passed,
 			// check that the latest etcd member is ready
 			address := getEtcdMachineAddress(newestUpToDateMachine)
-			if err := r.doEtcdHealthCheck(ctx, cluster, address); err != nil {
+			if err := r.performEndpointHealthCheck(ctx, cluster, getMemberClientURL(address)); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -220,15 +226,15 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 		log.Info("Initializing etcd cluster", "Desired", desiredReplicas, "Existing", numCurrentMachines)
 		conditions.MarkFalse(etcdCluster, etcdv1.InitializedCondition, etcdv1.WaitingForEtcdadmInitReason, clusterv1.ConditionSeverityInfo, "")
 		return r.intializeEtcdCluster(ctx, etcdCluster, cluster, ep)
-	case numCurrentMachines < desiredReplicas && numCurrentMachines > 0:
+	case numCurrentMachines == 1 && conditions.IsFalse(etcdCluster, etcdv1.InitializedCondition):
+		// as soon as first etcd machine is up, etcdadm init would be run on it to initialize the etcd cluster, update the condition
 		if !etcdCluster.Status.Initialized {
 			// defer func in Reconcile will requeue it after 20 sec
 			return ctrl.Result{}, nil
 		}
 		// since etcd cluster has been initialized
-		if conditions.IsFalse(etcdCluster, etcdv1.InitializedCondition) {
-			conditions.MarkTrue(etcdCluster, etcdv1.InitializedCondition)
-		}
+		conditions.MarkTrue(etcdCluster, etcdv1.InitializedCondition)
+	case numCurrentMachines < desiredReplicas && numCurrentMachines > 0:
 		log.Info("Scaling up etcd cluster", "Desired", desiredReplicas, "Existing", numCurrentMachines)
 		return r.scaleUpEtcdCluster(ctx, etcdCluster, cluster, ep)
 	case numCurrentMachines > desiredReplicas:

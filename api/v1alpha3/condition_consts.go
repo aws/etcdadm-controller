@@ -16,7 +16,7 @@ const (
 	EtcdCertificatesAvailableCondition clusterv1.ConditionType = "EtcdCertificatesAvailable"
 
 	// EtcdClusterResizeCompleted indicates if cluster is finished with scale up/down or is being resized
-	EtcdClusterResizeCompleted clusterv1.ConditionType = "EtcdScaleInProgress"
+	EtcdClusterResizeCompleted clusterv1.ConditionType = "EtcdClusterResizeCompleted"
 
 	// EtcdScaleUpInProgressReason indicates scale up is in progress
 	EtcdScaleUpInProgressReason = "ScalingUp"
@@ -25,7 +25,7 @@ const (
 	EtcdScaleDownInProgressReason = "ScalingDown"
 
 	// InitializedCondition shows if etcd cluster has been initialized, which is when the first etcd member has been initialized
-	InitializedCondition clusterv1.ConditionType = "Available"
+	InitializedCondition clusterv1.ConditionType = "Initialized"
 
 	// WaitingForEtcdadmInitReason shows that the first etcd member has not been created yet
 	WaitingForEtcdadmInitReason = "WaitingForEtcdadmInit"

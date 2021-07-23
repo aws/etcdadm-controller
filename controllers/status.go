@@ -2,10 +2,7 @@ package controllers
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"net/http"
 	"strings"
 
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
@@ -54,68 +51,28 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	}
 
 	if readyReplicas == desiredReplicas {
-		log.Info("Performing endpoint healthcheck and updating fields")
-		var endpoint string
+		var endpoints string
 		for _, m := range ownedMachines {
-			log.Info(fmt.Sprintf("Performing healthcheck for machine %v", m.Name))
+			log.Info(fmt.Sprintf("Checking if machine %v has address set for healthcheck", m.Name))
 			if len(m.Status.Addresses) == 0 {
 				return nil
 			}
-			// TODO: save endpoint on the EtcdadmConfig status object
-			if endpoint != "" {
-				endpoint += ","
+			if endpoints != "" {
+				endpoints += ","
 			}
-			endpoint += fmt.Sprintf("https://%s:2379", getEtcdMachineAddress(m))
+			currentEndpoint := getMemberClientURL(getEtcdMachineAddress(m))
+			endpoints += currentEndpoint
 		}
-		log.Info(fmt.Sprintf("running endpoint checks on %v", endpoint))
-		if err := r.doEtcdHealthCheck(ctx, cluster, endpoint); err != nil {
-			ec.Status.Ready = false
-			return err
+		log.Info(fmt.Sprintf("Running healthcheck on endpoints %v", endpoints))
+		for _, endpoint := range strings.Split(endpoints, ",") {
+			if err := r.performEndpointHealthCheck(ctx, cluster, endpoint); err != nil {
+				ec.Status.Ready = false
+				return err
+			}
 		}
 		// etcd ready when all machines have address set
 		ec.Status.Ready = true
-		ec.Status.Endpoint = endpoint
-	}
-	return nil
-}
-
-func (r *EtcdadmClusterReconciler) doEtcdHealthCheck(ctx context.Context, cluster *clusterv1.Cluster, endpoints string) error {
-	caCertPool := x509.NewCertPool()
-	caCert, err := r.getCACert(ctx, cluster)
-	if err != nil {
-		return err
-	}
-	caCertPool.AppendCertsFromPEM(caCert)
-
-	clientCert, err := r.getClientCerts(ctx, cluster)
-	if err != nil {
-		return errors.Wrap(err, "Error getting client cert for healthcheck")
-	}
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:      caCertPool,
-				Certificates: []tls.Certificate{clientCert},
-			},
-		},
-	}
-
-	for _, endpoint := range strings.Split(endpoints, ",") {
-		req, err := http.NewRequest("GET", endpoint+"/health", nil)
-		if err != nil {
-			return err
-		}
-		req.Close = true
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return errors.Wrap(err, "error checking etcd member health")
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return errors.Wrap(err, "error member not ready, retry")
-		}
-		r.Log.Info(fmt.Sprintf("Etcd member %v ready", endpoint+"/health"))
+		ec.Status.Endpoints = endpoints
 	}
 	return nil
 }
