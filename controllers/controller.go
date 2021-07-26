@@ -179,11 +179,7 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 	conditions.SetAggregate(etcdCluster, etcdv1.EtcdMachinesReadyCondition, ownedMachines.ConditionGetters(), conditions.AddSourceRef(), conditions.WithStepCounterIf(false))
 
 	numCurrentMachines := len(ownedMachines)
-	if etcdCluster.Spec.Replicas != nil {
-		desiredReplicas = int(*etcdCluster.Spec.Replicas)
-	} else {
-		desiredReplicas = 1
-	}
+	desiredReplicas = int(*etcdCluster.Spec.Replicas)
 
 	// Etcd machines rollout due to configuration changes (e.g. upgrades) takes precedence over other operations.
 	needRollout := ep.MachinesNeedingRollout()

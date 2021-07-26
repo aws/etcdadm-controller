@@ -49,7 +49,7 @@ func (r *EtcdadmCluster) Default() {
 	etcdadmclusterlog.Info("default", "name", r.Name)
 
 	if r.Spec.Replicas == nil {
-		replicas := int32(3)
+		replicas := int32(1)
 		r.Spec.Replicas = &replicas
 	}
 
@@ -78,7 +78,7 @@ func (r *EtcdadmCluster) ValidateUpdate(old runtime.Object) error {
 		return apierrors.NewBadRequest(fmt.Sprintf("expected an EtcdadmCluster object but got a %T", old))
 	}
 
-	if oldEtcdadmCluster.Spec.Replicas != r.Spec.Replicas {
+	if *oldEtcdadmCluster.Spec.Replicas != *r.Spec.Replicas {
 		return field.Invalid(field.NewPath("spec", "replicas"), r.Spec.Replicas, "field is immutable")
 	}
 
