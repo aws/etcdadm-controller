@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha3
 
 import (
+	"fmt"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -70,6 +72,15 @@ func (r *EtcdadmCluster) ValidateCreate() error {
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
 func (r *EtcdadmCluster) ValidateUpdate(old runtime.Object) error {
 	etcdadmclusterlog.Info("validate update", "name", r.Name)
+
+	oldEtcdadmCluster, ok := old.(*EtcdadmCluster)
+	if !ok {
+		return apierrors.NewBadRequest(fmt.Sprintf("expected an EtcdadmCluster object but got a %T", old))
+	}
+
+	if oldEtcdadmCluster.Spec.Replicas != r.Spec.Replicas {
+		return field.Invalid(field.NewPath("spec", "replicas"), r.Spec.Replicas, "field is immutable")
+	}
 
 	allErrs := r.validateCommon()
 	if len(allErrs) > 0 {
