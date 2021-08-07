@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/go-logr/logr v0.1.0
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210726014003-a522920efbce
+	github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210807004059-42797f8a87fd
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.1
 	github.com/pkg/errors v0.9.1
@@ -22,4 +22,4 @@ require (
 	sigs.k8s.io/etcdadm v0.1.3
 )
 
-replace sigs.k8s.io/cluster-api => github.com/mrajashree/cluster-api v0.3.15-0.20210725060504-c2b0d0baee44
+replace sigs.k8s.io/cluster-api => github.com/mrajashree/cluster-api v0.3.15-0.20210807001639-ad3c6b449740

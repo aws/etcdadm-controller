@@ -25,7 +25,7 @@ import (
 )
 
 // EtcdMachinesSelectorForCluster returns the label selector necessary to get etcd machines for a given cluster.
-func EtcdMachinesSelectorForCluster(clusterName string) labels.Selector {
+func EtcdMachinesSelectorForCluster(clusterName, etcdClusterName string) labels.Selector {
 	must := func(r *labels.Requirement, err error) labels.Requirement {
 		if err != nil {
 			panic(err)
@@ -34,13 +34,13 @@ func EtcdMachinesSelectorForCluster(clusterName string) labels.Selector {
 	}
 	return labels.NewSelector().Add(
 		must(labels.NewRequirement(clusterv1.ClusterLabelName, selection.Equals, []string{clusterName})),
-		must(labels.NewRequirement(clusterv1.MachineEtcdClusterLabelName, selection.Exists, []string{})),
+		must(labels.NewRequirement(clusterv1.MachineEtcdClusterLabelName, selection.Equals, []string{etcdClusterName})),
 	)
 }
 
 // EtcdClusterMachines returns a filter to find all etcd machines for a cluster, regardless of ownership.
-func EtcdClusterMachines(clusterName string) func(machine *clusterv1.Machine) bool {
-	selector := EtcdMachinesSelectorForCluster(clusterName)
+func EtcdClusterMachines(clusterName, etcdClusterName string) func(machine *clusterv1.Machine) bool {
+	selector := EtcdMachinesSelectorForCluster(clusterName, etcdClusterName)
 	return func(machine *clusterv1.Machine) bool {
 		if machine == nil {
 			return false
@@ -50,10 +50,10 @@ func EtcdClusterMachines(clusterName string) func(machine *clusterv1.Machine) bo
 }
 
 // ControlPlaneLabelsForCluster returns a set of labels to add to a control plane machine for this specific cluster.
-func EtcdLabelsForCluster(clusterName string) map[string]string {
+func EtcdLabelsForCluster(clusterName string, etcdClusterName string) map[string]string {
 	return map[string]string{
 		clusterv1.ClusterLabelName:            clusterName,
-		clusterv1.MachineEtcdClusterLabelName: "",
+		clusterv1.MachineEtcdClusterLabelName: etcdClusterName,
 	}
 }
 
@@ -74,7 +74,7 @@ func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Co
 		Namespace:   ec.Namespace,
 		OwnerRef:    infraCloneOwner,
 		ClusterName: cluster.Name,
-		Labels:      EtcdLabelsForCluster(cluster.Name),
+		Labels:      EtcdLabelsForCluster(cluster.Name, ec.Name),
 	})
 
 	if err != nil {
@@ -107,7 +107,7 @@ func (r *EtcdadmClusterReconciler) generateEtcdadmConfig(ctx context.Context, ec
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            names.SimpleNameGenerator.GenerateName(ec.Name + "-"),
 			Namespace:       ec.Namespace,
-			Labels:          EtcdLabelsForCluster(cluster.Name),
+			Labels:          EtcdLabelsForCluster(cluster.Name, ec.Name),
 			OwnerReferences: []metav1.OwnerReference{owner},
 		},
 		Spec: ec.Spec.EtcdadmConfigSpec,
@@ -132,7 +132,7 @@ func (r *EtcdadmClusterReconciler) generateMachine(ctx context.Context, ec *etcd
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      names.SimpleNameGenerator.GenerateName(ec.Name + "-"),
 			Namespace: ec.Namespace,
-			Labels:    EtcdLabelsForCluster(cluster.Name),
+			Labels:    EtcdLabelsForCluster(cluster.Name, ec.Name),
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(ec, etcdv1.GroupVersion.WithKind("EtcdadmCluster")),
 			},

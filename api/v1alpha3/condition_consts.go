@@ -32,4 +32,11 @@ const (
 
 	// EtcdMachinesReadyCondition stores an aggregate status of all owned machines
 	EtcdMachinesReadyCondition clusterv1.ConditionType = "EtcdMachinesReady"
+
+	// EtcdClusterHasNoOutdatedMembersCondition indicates that all etcd members are up-to-date. NOTE: this includes even members present on Machines not owned by the
+	// etcdadm cluster
+	EtcdClusterHasNoOutdatedMembersCondition clusterv1.ConditionType = "EtcdClusterHasNoOutdatedMachines"
+
+	// EtcdClusterHasOutdatedMembersReason shows that some of the etcd members are out-of-date
+	EtcdClusterHasOutdatedMembersReason = "EtcdClusterHasOutdatedMachines"
 )

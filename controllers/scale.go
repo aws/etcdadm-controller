@@ -34,25 +34,27 @@ func (r *EtcdadmClusterReconciler) scaleUpEtcdCluster(ctx context.Context, ec *e
 }
 
 func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane, outdatedMachines collections.FilterableMachineCollection) (ctrl.Result, error) {
-	log := r.Log
 	// Pick the Machine that we should scale down.
 	machineToDelete, err := selectMachineForScaleDown(ep, outdatedMachines)
 	if err != nil || machineToDelete == nil {
 		return ctrl.Result{}, errors.Wrap(err, "failed to select machine for scale down")
 	}
-
+	return ctrl.Result{}, r.removeEtcdMemberAndDeleteMachine(ctx, ec, cluster, ep, machineToDelete)
+}
+func (r *EtcdadmClusterReconciler) removeEtcdMemberAndDeleteMachine(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane, machineToDelete *clusterv1.Machine) error {
+	log := r.Log
 	// Etcdadm has a "reset" command to remove an etcd member. But we can't run that command on the CAPI machine object after it's provisioned.
 	// so the following logic is based on how etcdadm performs "reset" https://github.com/kubernetes-sigs/etcdadm/blob/master/cmd/reset.go#L65
 	caCertPool := x509.NewCertPool()
 	caCert, err := r.getCACert(ctx, cluster)
 	if err != nil {
-		return ctrl.Result{}, err
+		return err
 	}
 	caCertPool.AppendCertsFromPEM(caCert)
 
 	clientCert, err := r.getClientCerts(ctx, cluster)
 	if err != nil {
-		return ctrl.Result{}, errors.Wrap(err, "Error getting client cert for healthcheck")
+		return errors.Wrap(err, "Error getting client cert for healthcheck")
 	}
 
 	// TODO: save endpoint on the EtcdadmConfig status object
@@ -60,8 +62,9 @@ func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec 
 	endpoint := fmt.Sprintf("https://%s:2379", machineAddress)
 	peerURL := fmt.Sprintf("https://%s:2380", machineAddress)
 	if err := r.changeClusterInitAddress(ctx, ec, cluster, ep, machineAddress, machineToDelete); err != nil {
-		return ctrl.Result{}, err
+		return err
 	}
+
 	etcdClient, err := clientv3.New(clientv3.Config{
 		Endpoints:   []string{endpoint},
 		DialTimeout: 5 * time.Second,
@@ -71,15 +74,15 @@ func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec 
 		},
 	})
 	if etcdClient == nil || err != nil {
-		log.Info("cloud not create etcd client")
-		return ctrl.Result{}, err
+		log.Info("could not create etcd client")
+		return err
 	}
 	etcdCtx, cancel := context.WithTimeout(ctx, constants.DefaultEtcdRequestTimeout)
 	mresp, err := etcdClient.MemberList(etcdCtx)
 	cancel()
 	if err != nil {
 		log.Error(err, "Error listing members: %v")
-		return ctrl.Result{}, err
+		return err
 	}
 
 	localMember, ok := memberForPeerURLs(mresp, []string{peerURL})
@@ -95,7 +98,7 @@ func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec 
 			}
 			if err := r.Client.Delete(ctx, machineToDelete); err != nil && !apierrors.IsNotFound(err) {
 				log.Error(err, "Failed to delete etcd machine")
-				return ctrl.Result{}, err
+				return err
 			}
 		} else {
 			log.Info("Not removing member because it is the last in the cluster")
@@ -104,5 +107,5 @@ func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec 
 		log.Info("Member was removed")
 	}
 
-	return ctrl.Result{}, nil
+	return nil
 }

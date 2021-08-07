@@ -288,10 +288,10 @@ github.com/modern-go/reflect2 v0.0.0-20180320133207-05fbef0ca5da/go.mod h1:bx2lN
 github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
 github.com/modern-go/reflect2 v1.0.1 h1:9f412s+6RmYXLWZSEzVVgPGK7C2PphHj5RJrvfx9AWI=
 github.com/modern-go/reflect2 v1.0.1/go.mod h1:bx2lNnkwVCuqBIxFjflWJWanXIb3RllmbCylyMrvgv0=
-github.com/mrajashree/cluster-api v0.3.15-0.20210725060504-c2b0d0baee44 h1:slirlezYmTpVHjW69o6rh4/1nWwUcOjfTuuD23MhZlg=
-github.com/mrajashree/cluster-api v0.3.15-0.20210725060504-c2b0d0baee44/go.mod h1:1DBZEj6GmcWxe77d8YOeac1JIa8ttP21uTHUlAyji2g=
-github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210726014003-a522920efbce h1:OY0sY5/w2gb2KR3pKBUwZSVanoV4OtKDZzlAMjQAQTo=
-github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210726014003-a522920efbce/go.mod h1:jB2v/99cpdKDNFpxWUbuO/623ys2jqJy9R4lku/X3Bg=
+github.com/mrajashree/cluster-api v0.3.15-0.20210807001639-ad3c6b449740 h1:LDjZWFKv6WOkAAbEjQFc8D1NFjQMWC2xvrhuy3RKbDQ=
+github.com/mrajashree/cluster-api v0.3.15-0.20210807001639-ad3c6b449740/go.mod h1:1DBZEj6GmcWxe77d8YOeac1JIa8ttP21uTHUlAyji2g=
+github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210807004059-42797f8a87fd h1:o+KUFBQAFfDMk/w/Y/e6HAgh+WwpcezI9Iv5NkkDAW0=
+github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210807004059-42797f8a87fd/go.mod h1:p5iD9Atm4c+YEWKsInhWXR1cq7l5zbiCVyZZG20vDqg=
 github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=

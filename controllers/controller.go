@@ -132,6 +132,12 @@ func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result,
 
 		}
 
+		if conditions.IsFalse(etcdCluster, etcdv1.EtcdMachinesSpecUpToDateCondition) &&
+			conditions.GetReason(etcdCluster, etcdv1.EtcdMachinesSpecUpToDateCondition) == etcdv1.EtcdRollingUpdateInProgressReason {
+			// set ready to false, so that CAPI cluster controller will pause KCP so it doesn't keep checking if endpoints are updated
+			etcdCluster.Status.Ready = false
+		}
+
 		// Always attempt to Patch the EtcdadmCluster object and status after each reconciliation.
 		if err := patchEtcdCluster(ctx, patchHelper, etcdCluster); err != nil {
 			log.Error(err, "Failed to patch EtcdadmCluster")
@@ -139,7 +145,8 @@ func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result,
 		}
 
 		if reterr == nil && !res.Requeue && !(res.RequeueAfter > 0) && etcdCluster.ObjectMeta.DeletionTimestamp.IsZero() {
-			if !etcdCluster.Status.Ready {
+			//if !etcdCluster.Status.Ready {
+			if !etcdCluster.Status.Ready && conditions.IsTrue(etcdCluster, etcdv1.EtcdMachinesSpecUpToDateCondition) {
 				res = ctrl.Result{RequeueAfter: 20 * time.Second}
 			}
 		}
@@ -156,24 +163,43 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 		return ctrl.Result{}, err
 	}
 
-	etcdMachines, err := collections.GetMachinesForCluster(ctx, r.uncachedClient, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name))
+	etcdMachines, err := collections.GetMachinesForCluster(ctx, r.uncachedClient, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name, etcdCluster.Name))
 	if err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "Error filtering machines for etcd cluster")
 	}
 
 	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster))
-	log.Info(fmt.Sprintf("found following machines owned by etcd cluster: %v", ownedMachines.Names()))
-
-	// TODO: remove this check if not needed
-	if len(ownedMachines) != len(etcdMachines) {
-		log.Info("Not all etcd machines are owned by this EtcdadmCluster")
-		return ctrl.Result{}, nil
-	}
 
 	ep, err := NewEtcdPlane(ctx, r.Client, cluster, etcdCluster, ownedMachines)
 	if err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "Error initializing internal object EtcdPlane")
 	}
+
+	if len(ownedMachines) != len(etcdMachines) {
+		if conditions.IsUnknown(etcdCluster, etcdv1.EtcdClusterHasNoOutdatedMembersCondition) || conditions.IsTrue(etcdCluster, etcdv1.EtcdClusterHasNoOutdatedMembersCondition) {
+			conditions.MarkFalse(etcdCluster, etcdv1.EtcdClusterHasNoOutdatedMembersCondition, etcdv1.EtcdClusterHasOutdatedMembersReason, clusterv1.ConditionSeverityInfo, "%d etcd members have outdated spec", len(etcdMachines.Difference(ownedMachines)))
+		}
+		/* These would be the out-of-date etcd machines still belonging to the current etcd cluster as etcd members, but not owned by the EtcdadmCluster object
+		When upgrading a cluster, etcd machines need to be upgraded first so that the new etcd endpoints become available. But the outdated controlplane machines
+		will keep trying to connect to the etcd members they were configured with. So we cannot delete these older etcd members till controlplane rollout has finished.
+		So this is only possible after an upgrade, and these machines can be deleted only after controlplane upgrade has finished. */
+
+		if _, ok := etcdCluster.Annotations[clusterv1.ControlPlaneUpgradeCompletedAnnotation]; ok {
+			outdatedMachines := etcdMachines.Difference(ownedMachines)
+			log.Info(fmt.Sprintf("Controlplane upgrade has completed, deleting older outdated etcd members: %v", outdatedMachines.Names()))
+			for _, outofdateMachine := range outdatedMachines {
+				return ctrl.Result{}, r.removeEtcdMemberAndDeleteMachine(ctx, etcdCluster,cluster, ep, outofdateMachine)
+			}
+		}
+	} else {
+		if _, ok := etcdCluster.Annotations[clusterv1.ControlPlaneUpgradeCompletedAnnotation]; ok {
+			delete(etcdCluster.Annotations, clusterv1.ControlPlaneUpgradeCompletedAnnotation)
+		}
+		if conditions.IsFalse(etcdCluster, etcdv1.EtcdClusterHasNoOutdatedMembersCondition) {
+			conditions.MarkTrue(etcdCluster, etcdv1.EtcdClusterHasNoOutdatedMembersCondition)
+		}
+	}
+
 
 	// This aggregates the state of all machines
 	conditions.SetAggregate(etcdCluster, etcdv1.EtcdMachinesReadyCondition, ownedMachines.ConditionGetters(), conditions.AddSourceRef(), conditions.WithStepCounterIf(false))
@@ -201,6 +227,9 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 			// otherwise, if the minimum time to wait between successive machine updates has passed,
 			// check that the latest etcd member is ready
 			address := getEtcdMachineAddress(newestUpToDateMachine)
+			if address == "" {
+				return ctrl.Result{}, nil
+			}
 			if err := r.performEndpointHealthCheck(ctx, cluster, getMemberClientURL(address)); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -213,6 +242,10 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 		// reconciliation/before a rolling upgrade actually starts.
 		if conditions.Has(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition) {
 			conditions.MarkTrue(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition)
+
+			if _, hasUpgradeAnnotation := etcdCluster.Annotations[etcdv1.UpgradeInProgressAnnotation]; hasUpgradeAnnotation {
+				delete(etcdCluster.Annotations, etcdv1.UpgradeInProgressAnnotation)
+			}
 		}
 	}
 
@@ -267,6 +300,7 @@ func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1
 			etcdv1.EtcdMachinesReadyCondition,
 			etcdv1.EtcdClusterResizeCompleted,
 			etcdv1.InitializedCondition,
+			etcdv1.EtcdClusterHasNoOutdatedMembersCondition,
 		),
 	)
 
@@ -281,6 +315,7 @@ func patchEtcdCluster(ctx context.Context, patchHelper *patch.Helper, ec *etcdv1
 			etcdv1.EtcdMachinesReadyCondition,
 			etcdv1.EtcdClusterResizeCompleted,
 			etcdv1.InitializedCondition,
+			etcdv1.EtcdClusterHasNoOutdatedMembersCondition,
 		}},
 		patch.WithStatusObservedGeneration{},
 	)

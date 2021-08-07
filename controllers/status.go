@@ -15,22 +15,19 @@ import (
 
 func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) error {
 	log := r.Log.WithName(ec.Name)
-	selector := EtcdMachinesSelectorForCluster(cluster.Name)
+	selector := EtcdMachinesSelectorForCluster(cluster.Name, ec.Name)
 	// Copy label selector to its status counterpart in string format.
 	// This is necessary for CRDs including scale subresources.
 	ec.Status.Selector = selector.String()
 
-	etcdMachines, err := collections.GetMachinesForCluster(ctx, r.Client, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name))
+	etcdMachines, err := collections.GetMachinesForCluster(ctx, r.Client, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name, ec.Name))
 	if err != nil {
 		return errors.Wrap(err, "Error filtering machines for etcd cluster")
 	}
 	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(ec))
-	log.Info(fmt.Sprintf("following machines are owned by this etcd cluster: %v", ownedMachines.Names()))
 
 	desiredReplicas := *ec.Spec.Replicas
 	ec.Status.ReadyReplicas = int32(len(ownedMachines))
-
-	log.Info(fmt.Sprintf("ready replicas for etcd cluster %v: %v", ec.Name, ec.Status.ReadyReplicas))
 
 	if !ec.DeletionTimestamp.IsZero() {
 		return nil
