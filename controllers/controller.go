@@ -187,7 +187,7 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 			outdatedMachines := etcdMachines.Difference(ownedMachines)
 			log.Info(fmt.Sprintf("Controlplane upgrade has completed, deleting older outdated etcd members: %v", outdatedMachines.Names()))
 			for _, outdatedMachine := range outdatedMachines {
-				err := r.removeEtcdMemberAndDeleteMachine(ctx, etcdCluster,cluster, ep, outdatedMachine)
+				err := r.removeEtcdMemberAndDeleteMachine(ctx, etcdCluster, cluster, ep, outdatedMachine)
 				if len(outdatedMachines) > 1 {
 					return ctrl.Result{}, err
 				} else {
@@ -206,7 +206,6 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 			conditions.MarkTrue(etcdCluster, etcdv1.EtcdClusterHasNoOutdatedMembersCondition)
 		}
 	}
-
 
 	// This aggregates the state of all machines
 	conditions.SetAggregate(etcdCluster, etcdv1.EtcdMachinesReadyCondition, ownedMachines.ConditionGetters(), conditions.AddSourceRef(), conditions.WithStepCounterIf(false))

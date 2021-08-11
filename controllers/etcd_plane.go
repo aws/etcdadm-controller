@@ -18,10 +18,10 @@ import (
 )
 
 type EtcdPlane struct {
-	EC                    *etcdv1.EtcdadmCluster
-	Cluster               *clusterv1.Cluster
-	Machines              collections.FilterableMachineCollection
-	machinesPatchHelpers  map[string]*patch.Helper
+	EC                   *etcdv1.EtcdadmCluster
+	Cluster              *clusterv1.Cluster
+	Machines             collections.FilterableMachineCollection
+	machinesPatchHelpers map[string]*patch.Helper
 
 	etcdadmConfigs map[string]*etcdbpv1alpha3.EtcdadmConfig
 	infraResources map[string]*unstructured.Unstructured
