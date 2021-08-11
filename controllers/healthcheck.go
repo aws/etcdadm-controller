@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"net/url"
 
 	"github.com/pkg/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
@@ -21,10 +23,26 @@ type EtcdHealthCheckResponse struct {
 	Health string `json:"health"`
 }
 
+type portNotOpenError struct{}
+
+func (h *portNotOpenError) Error() string {
+	return "etcd endpoint port is not open"
+}
+
+var portNotOpenErr = &portNotOpenError{}
+
 func (r *EtcdadmClusterReconciler) performEndpointHealthCheck(ctx context.Context, cluster *clusterv1.Cluster, endpoint string) error {
 	if err := r.setEtcdHttpClientIfUnset(ctx, cluster); err != nil {
 		return err
 	}
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return errors.Wrapf(err, "invalid etcd endpoint url")
+	}
+	if !isPortOpen(ctx, u.Host) {
+		return portNotOpenErr
+	}
+
 	client := r.etcdHealthCheckConfig.etcdHttpClient
 	healthCheckURL := getMemberHealthCheckEndpoint(endpoint)
 	r.Log.Info(fmt.Sprintf("Performing healthcheck on endpoint %s", healthCheckURL))
@@ -91,4 +109,18 @@ func (r *EtcdadmClusterReconciler) setEtcdHttpClientIfUnset(ctx context.Context,
 		},
 	}
 	return nil
+}
+
+func isPortOpen(ctx context.Context, endpoint string) bool {
+	conn, err := net.Dial("tcp", endpoint)
+	if err != nil {
+		return false
+	}
+
+	if conn != nil {
+		conn.Close()
+		return true
+	}
+
+	return false
 }

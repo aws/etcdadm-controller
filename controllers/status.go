@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-logr/logr"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
 	"github.com/pkg/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
@@ -43,40 +44,66 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 
 	readyReplicas := ec.Status.ReadyReplicas
 
-	switch {
-	case readyReplicas < desiredReplicas:
+	if readyReplicas < desiredReplicas {
 		conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleUpInProgressReason, clusterv1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
-	case readyReplicas > desiredReplicas:
+		return nil
+	}
+
+	if readyReplicas > desiredReplicas {
 		conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleDownInProgressReason, clusterv1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
-	default:
-		if readyReplicas == desiredReplicas {
-			conditions.MarkTrue(ec, etcdv1.EtcdClusterResizeCompleted)
+		return nil
+	}
+
+	conditions.MarkTrue(ec, etcdv1.EtcdClusterResizeCompleted)
+
+	endpoints := getMachinesEndpoints(log, ownedMachines)
+	if len(endpoints) == 0 {
+		return nil
+	}
+
+	log.Info("Running healthcheck on machines", "endpoints", endpoints)
+	if machinesReady, err := r.performMachinesHealthCheck(ctx, log, endpoints, cluster); err != nil {
+		ec.Status.Ready = false
+		return err
+	} else if !machinesReady {
+		return nil
+	}
+
+	// etcd ready when all machines have address set
+	ec.Status.Ready = true
+	ec.Status.Endpoints = strings.Join(endpoints, ",")
+
+	return nil
+}
+
+func getMachinesEndpoints(log logr.Logger, machines collections.FilterableMachineCollection) []string {
+	endpoints := make([]string, 0, len(machines))
+	for _, m := range machines {
+		log.Info("Checking if machine has address set for healthcheck", "machine", m.Name)
+		if len(m.Status.Addresses) == 0 {
+			log.Info("No address set in machine yet", "machine", m.Name)
+			return nil
+		}
+
+		currentEndpoint := getMemberClientURL(getEtcdMachineAddress(m))
+		endpoints = append(endpoints, currentEndpoint)
+	}
+
+	return endpoints
+}
+
+func (r *EtcdadmClusterReconciler) performMachinesHealthCheck(ctx context.Context, log logr.Logger, endpoints []string, cluster *clusterv1.Cluster) (healthy bool, err error) {
+	for _, endpoint := range endpoints {
+		err := r.performEndpointHealthCheck(ctx, cluster, endpoint)
+		if errors.Is(err, portNotOpenErr) {
+			log.Info("Machine is not listening yet, this is probably transient, while etcd starts", "endpoint", endpoint)
+			return false, nil
+		}
+
+		if err != nil {
+			return false, err
 		}
 	}
 
-	if readyReplicas == desiredReplicas {
-		var endpoints string
-		for _, m := range ownedMachines {
-			log.Info(fmt.Sprintf("Checking if machine %v has address set for healthcheck", m.Name))
-			if len(m.Status.Addresses) == 0 {
-				return nil
-			}
-			if endpoints != "" {
-				endpoints += ","
-			}
-			currentEndpoint := getMemberClientURL(getEtcdMachineAddress(m))
-			endpoints += currentEndpoint
-		}
-		log.Info(fmt.Sprintf("Running healthcheck on endpoints %v", endpoints))
-		for _, endpoint := range strings.Split(endpoints, ",") {
-			if err := r.performEndpointHealthCheck(ctx, cluster, endpoint); err != nil {
-				ec.Status.Ready = false
-				return err
-			}
-		}
-		// etcd ready when all machines have address set
-		ec.Status.Ready = true
-		ec.Status.Endpoints = endpoints
-	}
-	return nil
+	return true, nil
 }
