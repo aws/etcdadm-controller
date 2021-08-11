@@ -20,7 +20,15 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	// This is necessary for CRDs including scale subresources.
 	ec.Status.Selector = selector.String()
 
-	etcdMachines, err := collections.GetMachinesForCluster(ctx, r.Client, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name, ec.Name))
+	var etcdMachines collections.FilterableMachineCollection
+	var err error
+	if conditions.IsFalse(ec, etcdv1.EtcdMachinesSpecUpToDateCondition) {
+		// During upgrade with current logic, outdated machines don't get deleted right away.
+		// the controller removes their etcdadmCluster ownerRef and updates the Machine. So using uncachedClient here will fetch those changes
+		etcdMachines, err = collections.GetMachinesForCluster(ctx, r.uncachedClient, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name, ec.Name))
+	} else {
+		etcdMachines, err = collections.GetMachinesForCluster(ctx, r.Client, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name, ec.Name))
+	}
 	if err != nil {
 		return errors.Wrap(err, "Error filtering machines for etcd cluster")
 	}

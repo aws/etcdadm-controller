@@ -145,7 +145,6 @@ func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result,
 		}
 
 		if reterr == nil && !res.Requeue && !(res.RequeueAfter > 0) && etcdCluster.ObjectMeta.DeletionTimestamp.IsZero() {
-			//if !etcdCluster.Status.Ready {
 			if !etcdCluster.Status.Ready && conditions.IsTrue(etcdCluster, etcdv1.EtcdMachinesSpecUpToDateCondition) {
 				res = ctrl.Result{RequeueAfter: 20 * time.Second}
 			}
@@ -187,15 +186,23 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 		if _, ok := etcdCluster.Annotations[clusterv1.ControlPlaneUpgradeCompletedAnnotation]; ok {
 			outdatedMachines := etcdMachines.Difference(ownedMachines)
 			log.Info(fmt.Sprintf("Controlplane upgrade has completed, deleting older outdated etcd members: %v", outdatedMachines.Names()))
-			for _, outofdateMachine := range outdatedMachines {
-				return ctrl.Result{}, r.removeEtcdMemberAndDeleteMachine(ctx, etcdCluster,cluster, ep, outofdateMachine)
+			for _, outdatedMachine := range outdatedMachines {
+				err := r.removeEtcdMemberAndDeleteMachine(ctx, etcdCluster,cluster, ep, outdatedMachine)
+				if len(outdatedMachines) > 1 {
+					return ctrl.Result{}, err
+				} else {
+					// requeue so controller reconciles after last machine is deleted and the "EtcdClusterHasNoOutdatedMembersCondition" is marked true
+					return ctrl.Result{Requeue: true}, err
+				}
 			}
 		}
 	} else {
 		if _, ok := etcdCluster.Annotations[clusterv1.ControlPlaneUpgradeCompletedAnnotation]; ok {
+			log.Info("Outdated etcd members deleted, removing controlplane-upgrade complete annotation")
 			delete(etcdCluster.Annotations, clusterv1.ControlPlaneUpgradeCompletedAnnotation)
 		}
 		if conditions.IsFalse(etcdCluster, etcdv1.EtcdClusterHasNoOutdatedMembersCondition) {
+			log.Info(fmt.Sprintf("Outdated etcd members deleted, setting %s to true", etcdv1.EtcdClusterHasNoOutdatedMembersCondition))
 			conditions.MarkTrue(etcdCluster, etcdv1.EtcdClusterHasNoOutdatedMembersCondition)
 		}
 	}

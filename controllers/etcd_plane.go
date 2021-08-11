@@ -185,13 +185,13 @@ func MatchesTemplateClonedFrom(infraConfigs map[string]*unstructured.Unstructure
 		clonedFromName, ok1 := infraObj.GetAnnotations()[clusterv1.TemplateClonedFromNameAnnotation]
 		clonedFromGroupKind, ok2 := infraObj.GetAnnotations()[clusterv1.TemplateClonedFromGroupKindAnnotation]
 		if !ok1 || !ok2 {
-			// All kcp cloned infra machines should have this annotation.
+			// All etcdadmCluster cloned infra machines should have this annotation.
 			// Missing the annotation may be due to older version machines or adopted machines.
 			// Should not be considered as mismatch.
 			return true
 		}
 
-		// Check if the machine's infrastructure reference has been created from the current KCP infrastructure template.
+		// Check if the machine's infrastructure reference has been created from the current etcdadmCluster infrastructure template.
 		if clonedFromName != ec.Spec.InfrastructureTemplate.Name ||
 			clonedFromGroupKind != ec.Spec.InfrastructureTemplate.GroupVersionKind().GroupKind().String() {
 			return false

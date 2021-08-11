@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"context"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"fmt"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/cluster-api/util/collections"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -46,6 +46,7 @@ func (r *EtcdadmClusterReconciler) removeFromListOfOwnedMachines(ctx context.Con
 	if err != nil || machineToDelete == nil {
 		return errors.Wrap(err, "failed to select machine for scale down")
 	}
+	r.Log.Info(fmt.Sprintf("Removing member %s from list of owned Etcd machines", machineToDelete.Name))
 	// remove the etcd cluster ownerRef so it's no longer considered a machine owned by the etcd cluster
 	machineToDelete.OwnerReferences = []metav1.OwnerReference{}
 	return r.Client.Update(ctx, machineToDelete)
