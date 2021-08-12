@@ -10,10 +10,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/pkg/errors"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 )
+
+const httpClientTimeout = 10 * time.Second
 
 type etcdHealthCheckConfig struct {
 	etcdHttpClient *http.Client
@@ -101,6 +104,7 @@ func (r *EtcdadmClusterReconciler) setEtcdHttpClientIfUnset(ctx context.Context,
 		return errors.Wrap(err, "Error getting client cert for healthcheck")
 	}
 	r.etcdHealthCheckConfig.etcdHttpClient = &http.Client{
+		Timeout: httpClientTimeout,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
 				RootCAs:      caCertPool,
