@@ -16,7 +16,10 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 )
 
-const httpClientTimeout = 10 * time.Second
+const (
+	httpClientTimeout = 10 * time.Second
+	portCheckTimeout = 2 * time.Second
+)
 
 type etcdHealthCheckConfig struct {
 	etcdHttpClient *http.Client
@@ -116,7 +119,7 @@ func (r *EtcdadmClusterReconciler) setEtcdHttpClientIfUnset(ctx context.Context,
 }
 
 func isPortOpen(ctx context.Context, endpoint string) bool {
-	conn, err := net.Dial("tcp", endpoint)
+	conn, err := net.DialTimeout("tcp", endpoint, portCheckTimeout)
 	if err != nil {
 		return false
 	}
