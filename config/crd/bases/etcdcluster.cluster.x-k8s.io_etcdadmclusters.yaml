@@ -48,6 +48,17 @@ spec:
                     items:
                       type: string
                     type: array
+                  format:
+                    description: Format specifies the output format of the bootstrap
+                      data
+                    enum:
+                    - cloud-config
+                    - bottlerocket
+                    type: string
+                  imageRepository:
+                    description: ImageRepository is an optional field to specify where
+                      etcdadm can pull etcd images from
+                    type: string
                   postEtcdadmCommands:
                     description: PostEtcdadmCommands specifies extra commands to run
                       after kubeadm runs
