@@ -292,6 +292,8 @@ github.com/mrajashree/cluster-api v0.3.15-0.20210807001639-ad3c6b449740 h1:LDjZW
 github.com/mrajashree/cluster-api v0.3.15-0.20210807001639-ad3c6b449740/go.mod h1:1DBZEj6GmcWxe77d8YOeac1JIa8ttP21uTHUlAyji2g=
 github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210812165241-afab287cd8b0 h1:9ojpRHa6sUnr2nqZx2IPw7GrrwMmaRlK7PvD+cBGwYs=
 github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210812165241-afab287cd8b0/go.mod h1:p5iD9Atm4c+YEWKsInhWXR1cq7l5zbiCVyZZG20vDqg=
+github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210812224948-49f9ec4933b5 h1:8xmcG90J2v3giAPYy47GbY3ycbV9Oj5PMMV1CXLNd+4=
+github.com/mrajashree/etcdadm-bootstrap-provider v0.1.1-0.20210812224948-49f9ec4933b5/go.mod h1:p5iD9Atm4c+YEWKsInhWXR1cq7l5zbiCVyZZG20vDqg=
 github.com/munnerz/goautoneg v0.0.0-20120707110453-a547fc61f48d/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
