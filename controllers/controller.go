@@ -145,7 +145,7 @@ func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result,
 		}
 
 		if reterr == nil && !res.Requeue && !(res.RequeueAfter > 0) && etcdCluster.ObjectMeta.DeletionTimestamp.IsZero() {
-			if !etcdCluster.Status.Ready && conditions.IsTrue(etcdCluster, etcdv1.EtcdMachinesSpecUpToDateCondition) {
+			if !etcdCluster.Status.Ready {
 				res = ctrl.Result{RequeueAfter: 20 * time.Second}
 			}
 		}
