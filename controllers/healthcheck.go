@@ -18,7 +18,7 @@ import (
 
 const (
 	httpClientTimeout = 10 * time.Second
-	portCheckTimeout = 2 * time.Second
+	portCheckTimeout  = 2 * time.Second
 )
 
 type etcdHealthCheckConfig struct {
