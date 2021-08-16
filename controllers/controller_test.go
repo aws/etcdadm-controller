@@ -150,7 +150,9 @@ func TestReconcileNoClusterOwnerRef(t *testing.T) {
 		},
 		Spec: etcdv1.EtcdadmClusterSpec{
 			EtcdadmConfigSpec: bootstrapv1alpha3.EtcdadmConfigSpec{
-				Version: "v3.4.9",
+				CloudInitConfig: &bootstrapv1alpha3.CloudInitConfig{
+					Version: "v3.4.9",
+				},
 			},
 		},
 	}
@@ -195,7 +197,9 @@ func TestReconcilePaused(t *testing.T) {
 		},
 		Spec: etcdv1.EtcdadmClusterSpec{
 			EtcdadmConfigSpec: bootstrapv1alpha3.EtcdadmConfigSpec{
-				Version: "v3.4.9",
+				CloudInitConfig: &bootstrapv1alpha3.CloudInitConfig{
+					Version: "v3.4.9",
+				},
 			},
 		},
 	}
@@ -238,7 +242,9 @@ func TestReconcileInitializeEtcdCluster(t *testing.T) {
 		Spec: etcdv1.EtcdadmClusterSpec{
 			Replicas: pointer.Int32Ptr(int32(3)),
 			EtcdadmConfigSpec: bootstrapv1alpha3.EtcdadmConfigSpec{
-				Version: "v3.4.9",
+				CloudInitConfig: &bootstrapv1alpha3.CloudInitConfig{
+					Version: "v3.4.9",
+				},
 			},
 			InfrastructureTemplate: corev1.ObjectReference{
 				Kind:       infraTemplate.GetKind(),

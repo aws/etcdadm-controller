@@ -38,10 +38,32 @@ spec:
               etcdadmConfigSpec:
                 description: EtcdadmConfigSpec defines the desired state of EtcdadmConfig
                 properties:
-                  etcdReleaseURL:
-                    description: EtcdReleaseURL is an optional field to specify where
-                      etcdadm can download etcd from
-                    type: string
+                  bottlerocketConfig:
+                    description: BottlerocketConfig specifies the configuration for
+                      the bottlerocket bootstrap data
+                    properties:
+                      bootstrapImage:
+                        description: BootstrapImage specifies the container image
+                          to use for bottlerocket's bootstrapping
+                        type: string
+                      etcdImage:
+                        description: EtcdImage specifies the etcd image to use by
+                          etcdadm
+                        type: string
+                    required:
+                    - bootstrapImage
+                    type: object
+                  cloudInitConfig:
+                    description: CloudInitConfig specifies the configuration for the
+                      cloud-init bootstrap data
+                    properties:
+                      etcdReleaseURL:
+                        description: EtcdReleaseURL is an optional field to specify
+                          where etcdadm can download etcd from
+                        type: string
+                      version:
+                        type: string
+                    type: object
                   etcdadmBuiltin:
                     type: boolean
                   etcdadmInstallCommands:
@@ -54,10 +76,6 @@ spec:
                     enum:
                     - cloud-config
                     - bottlerocket
-                    type: string
-                  imageRepository:
-                    description: ImageRepository is an optional field to specify where
-                      etcdadm can pull etcd images from
                     type: string
                   postEtcdadmCommands:
                     description: PostEtcdadmCommands specifies extra commands to run
@@ -123,8 +141,6 @@ spec:
                       - name
                       type: object
                     type: array
-                  version:
-                    type: string
                 type: object
               infrastructureTemplate:
                 description: InfrastructureTemplate is a required reference to a custom
