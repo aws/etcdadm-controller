@@ -163,7 +163,7 @@ func (r *EtcdadmClusterReconciler) changeClusterInitAddress(ctx context.Context,
 		// Machine being deleted is not the machine whose address is used by members joining, noop
 		return nil
 	}
-	upToDateMachines := ep.UpToDateMachines()
+	upToDateMachines := ep.UpToDateMachines().Difference(collections.NewFilterableMachineCollection(machineToDelete))
 	var newInitAddress string
 	if len(upToDateMachines) == 0 {
 		// This can happen during an upgrade if the first node picked for scale down is the init node

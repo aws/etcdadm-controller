@@ -46,7 +46,7 @@ func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec 
 }
 func (r *EtcdadmClusterReconciler) removeEtcdMember(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane, machineToDelete *clusterv1.Machine) error {
 	machineAddress := getEtcdMachineAddress(machineToDelete)
-	peerURL := fmt.Sprintf("https://%s:2380", getEtcdMachineAddress(machineToDelete))
+	peerURL := fmt.Sprintf("https://%s:2380", machineAddress)
 	if err := r.changeClusterInitAddress(ctx, ec, cluster, ep, machineAddress, machineToDelete); err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func (r *EtcdadmClusterReconciler) generateEtcdClient(ctx context.Context, clust
 
 	clientCert, err := r.getClientCerts(ctx, cluster)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error getting client cert for healthcheck")
+		return nil, errors.Wrap(err, "error getting client cert for healthcheck")
 	}
 
 	etcdClient, err := clientv3.New(clientv3.Config{
@@ -99,21 +99,25 @@ func (r *EtcdadmClusterReconciler) removeEtcdMemberAndDeleteMachine(ctx context.
 	localMember, ok := memberForPeerURLs(mresp, []string{peerURL})
 	if ok {
 		if len(mresp.Members) > 1 {
-			log.Info(fmt.Sprintf("Removing member %s", localMember.Name))
+			log.Info("Removing", "member", localMember.Name)
 			etcdCtx, cancel = context.WithTimeout(ctx, constants.DefaultEtcdRequestTimeout)
 			_, err = etcdClient.MemberRemove(etcdCtx, localMember.ID)
 			cancel()
 			if err != nil {
 				return fmt.Errorf("failed to remove etcd member %s with error %v", localMember.Name, err)
 			}
-			if err := r.Client.Delete(ctx, machineToDelete); err != nil && !apierrors.IsNotFound(err) {
+			if err := r.Client.Delete(ctx, machineToDelete); err != nil && !apierrors.IsNotFound(err) && !apierrors.IsGone(err) {
 				return fmt.Errorf("failed to delete etcd machine %s with error %v", machineToDelete.Name, err)
 			}
 		} else {
-			log.Info(fmt.Sprintf("Not removing member %s because it is the last in the cluster", localMember.Name))
+			log.Info("Not removing last member in the cluster", "member", localMember.Name)
 		}
 	} else {
-		log.Info(fmt.Sprintf("Member %s was removed", localMember.Name))
+		log.Info("Member was removed")
+		// this could happen if the etcd member was removed through etcdctl calls, ensure that the machine gets deleted too
+		if err := r.Client.Delete(ctx, machineToDelete); err != nil && !apierrors.IsNotFound(err) && !apierrors.IsGone(err) {
+			return fmt.Errorf("failed to delete etcd machine %s with error %v", machineToDelete.Name, err)
+		}
 	}
 	return nil
 }

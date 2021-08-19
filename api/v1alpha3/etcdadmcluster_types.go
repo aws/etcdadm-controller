@@ -60,8 +60,14 @@ type EtcdadmClusterStatus struct {
 	// +optional
 	Initialized bool `json:"initialized"`
 
+	// Ready reflects the state of the etcd cluster, whether all of its members have passed healthcheck and are ready to serve requests or not.
 	// +optional
 	Ready bool `json:"ready"`
+
+	// CreationComplete gets set to true once the etcd cluster is created. Its value never changes after that.
+	// It is used as a way to indicate that the periodic healthcheck loop can be run for the particular etcd cluster.
+	// +optional
+	CreationComplete bool `json:"creationComplete"`
 
 	// +optional
 	Endpoints string `json:"endpoints"`

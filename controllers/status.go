@@ -71,6 +71,8 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	// etcd ready when all machines have address set
 	ec.Status.Ready = true
 	ec.Status.Endpoints = strings.Join(endpoints, ",")
+	// set creationComplete to true, this is only set once after the first set of endpoints are ready and never unset, to indicate that the cluster has been created
+	ec.Status.CreationComplete = true
 
 	return nil
 }
@@ -93,7 +95,7 @@ func getMachinesEndpoints(log logr.Logger, machines collections.FilterableMachin
 
 func (r *EtcdadmClusterReconciler) performMachinesHealthCheck(ctx context.Context, log logr.Logger, endpoints []string, cluster *clusterv1.Cluster) (healthy bool, err error) {
 	for _, endpoint := range endpoints {
-		err := r.performEndpointHealthCheck(ctx, cluster, endpoint)
+		err := r.performEndpointHealthCheck(ctx, cluster, endpoint, true)
 		if errors.Is(err, portNotOpenErr) {
 			log.Info("Machine is not listening yet, this is probably transient, while etcd starts", "endpoint", endpoint)
 			return false, nil

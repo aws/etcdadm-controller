@@ -17,8 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
+	"os/signal"
+	"syscall"
 
 	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,12 +76,13 @@ func main() {
 	}
 
 	// Setup the context that's going to be used in controllers and for the manager.
-	ctx := ctrl.SetupSignalHandler()
-	if err = (&controllers.EtcdadmClusterReconciler{
+	ctx, stopCh := setupSignalHandler()
+	etcdadmReconciler := &controllers.EtcdadmClusterReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("EtcdadmCluster"),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	}
+	if err = (etcdadmReconciler).SetupWithManager(ctx, mgr, stopCh); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "EtcdadmCluster")
 		os.Exit(1)
 	}
@@ -89,8 +93,34 @@ func main() {
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctx); err != nil {
+	if err := mgr.Start(stopCh); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+var onlyOneSignalHandler = make(chan struct{})
+var shutdownSignals = []os.Signal{os.Interrupt, syscall.SIGTERM}
+
+/* Controller runtime 0.5.4 returns a stop channel and 0.7.0 onwards returns a context that can be passed down to SetupWithManager and reconcilers
+Because cluster-api v0.3.x uses controller-runtime 0.5.4 version, etcdadm-controller cannot switch to a higher controller-runtime due to version mismatch errors
+So this function setupSignalHandler is a modified version of controller-runtime's SetupSignalHandler that returns both, a stop channel and a context that
+is cancelled when this controller exits
+*/
+func setupSignalHandler() (context.Context, <-chan struct{}) {
+	close(onlyOneSignalHandler) // panics when called twice
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stop := make(chan struct{})
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, shutdownSignals...)
+	go func() {
+		<-c
+		cancel()
+		close(stop)
+		<-c
+		os.Exit(1) // second signal. Exit directly.
+	}()
+
+	return ctx, stop
 }
