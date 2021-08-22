@@ -61,6 +61,10 @@ spec:
                         description: EtcdReleaseURL is an optional field to specify
                           where etcdadm can download etcd from
                         type: string
+                      installDir:
+                        description: InstallDir is an optional field to specify where
+                          etcdadm will extract etcd binaries to
+                        type: string
                       version:
                         type: string
                     type: object
