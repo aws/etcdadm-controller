@@ -188,13 +188,12 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 			log.Info(fmt.Sprintf("Controlplane upgrade has completed, deleting older outdated etcd members: %v", outdatedMachines.Names()))
 			for _, outdatedMachine := range outdatedMachines {
 				err := r.removeEtcdMemberAndDeleteMachine(ctx, etcdCluster, cluster, ep, outdatedMachine)
-				if len(outdatedMachines) > 1 {
+				if err != nil {
 					return ctrl.Result{}, err
-				} else {
-					// requeue so controller reconciles after last machine is deleted and the "EtcdClusterHasNoOutdatedMembersCondition" is marked true
-					return ctrl.Result{Requeue: true}, err
 				}
 			}
+			// requeue so controller reconciles after last machine is deleted and the "EtcdClusterHasNoOutdatedMembersCondition" is marked true
+			return ctrl.Result{Requeue: true}, nil
 		}
 	} else {
 		if _, ok := etcdCluster.Annotations[clusterv1.ControlPlaneUpgradeCompletedAnnotation]; ok {
