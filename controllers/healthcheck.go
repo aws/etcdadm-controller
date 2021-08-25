@@ -21,11 +21,7 @@ const (
 	portCheckTimeout  = 2 * time.Second
 )
 
-type etcdHealthCheckConfig struct {
-	etcdHttpClient *http.Client
-}
-
-type EtcdHealthCheckResponse struct {
+type etcdHealthCheckResponse struct {
 	Health string `json:"health"`
 }
 
@@ -37,7 +33,7 @@ func (h *portNotOpenError) Error() string {
 
 var portNotOpenErr = &portNotOpenError{}
 
-func (r *EtcdadmClusterReconciler) performEndpointHealthCheck(ctx context.Context, cluster *clusterv1.Cluster, endpoint string) error {
+func (r *EtcdadmClusterReconciler) performEndpointHealthCheck(ctx context.Context, cluster *clusterv1.Cluster, endpoint string, logLevelInfo bool) error {
 	if err := r.setEtcdHttpClientIfUnset(ctx, cluster); err != nil {
 		return err
 	}
@@ -51,7 +47,11 @@ func (r *EtcdadmClusterReconciler) performEndpointHealthCheck(ctx context.Contex
 
 	client := r.etcdHealthCheckConfig.etcdHttpClient
 	healthCheckURL := getMemberHealthCheckEndpoint(endpoint)
-	r.Log.Info(fmt.Sprintf("Performing healthcheck on endpoint %s", healthCheckURL))
+	if logLevelInfo {
+		// logging non-failures only for non-periodic checks so as to not log too many events
+		r.Log.Info("Performing healthcheck on", "endpoint", healthCheckURL)
+	}
+
 	req, err := http.NewRequest("GET", healthCheckURL, nil)
 	if err != nil {
 		return errors.Wrap(err, "error creating healthcheck request")
@@ -76,12 +76,15 @@ func (r *EtcdadmClusterReconciler) performEndpointHealthCheck(ctx context.Contex
 	if err := parseEtcdHealthCheckOutput(body); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("etcd member %v failed healthcheck", endpoint))
 	}
-	r.Log.Info(fmt.Sprintf("Etcd member %v ready", endpoint))
+	if logLevelInfo {
+		r.Log.Info("Etcd member ready", "member", endpoint)
+	}
+
 	return nil
 }
 
 func parseEtcdHealthCheckOutput(data []byte) error {
-	obj := EtcdHealthCheckResponse{}
+	obj := etcdHealthCheckResponse{}
 	if err := json.Unmarshal(data, &obj); err != nil {
 		return err
 	}
@@ -106,6 +109,7 @@ func (r *EtcdadmClusterReconciler) setEtcdHttpClientIfUnset(ctx context.Context,
 	if err != nil {
 		return errors.Wrap(err, "Error getting client cert for healthcheck")
 	}
+
 	r.etcdHealthCheckConfig.etcdHttpClient = &http.Client{
 		Timeout: httpClientTimeout,
 		Transport: &http.Transport{

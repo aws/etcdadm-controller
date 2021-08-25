@@ -236,6 +236,12 @@ spec:
                   - type
                   type: object
                 type: array
+              creationComplete:
+                description: CreationComplete gets set to true once the etcd cluster
+                  is created. Its value never changes after that. It is used as a
+                  way to indicate that the periodic healthcheck loop can be run for
+                  the particular etcd cluster.
+                type: boolean
               endpoints:
                 type: string
               initMachineAddress:
@@ -248,6 +254,9 @@ spec:
                 format: int64
                 type: integer
               ready:
+                description: Ready reflects the state of the etcd cluster, whether
+                  all of its members have passed healthcheck and are ready to serve
+                  requests or not.
                 type: boolean
               replicas:
                 description: Total number of non-terminated machines targeted by this

@@ -51,7 +51,7 @@ type EtcdadmClusterReconciler struct {
 	etcdHealthCheckConfig etcdHealthCheckConfig
 }
 
-func (r *EtcdadmClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, done <-chan struct{}) error {
 	c, err := ctrl.NewControllerManagedBy(mgr).
 		For(&etcdv1.EtcdadmCluster{}).
 		Owns(&clusterv1.Machine{}).
@@ -76,6 +76,7 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.controller = c
 	r.uncachedClient = mgr.GetAPIReader()
 
+	go r.startHealthCheckLoop(ctx, done)
 	return nil
 }
 
@@ -129,7 +130,6 @@ func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result,
 		if err := r.updateStatus(ctx, etcdCluster, cluster); err != nil {
 			log.Error(err, "Failed to update EtcdadmCluster Status")
 			reterr = kerrors.NewAggregate([]error{reterr, err})
-
 		}
 
 		if conditions.IsFalse(etcdCluster, etcdv1.EtcdMachinesSpecUpToDateCondition) &&
@@ -187,7 +187,7 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 			outdatedMachines := etcdMachines.Difference(ownedMachines)
 			log.Info(fmt.Sprintf("Controlplane upgrade has completed, deleting older outdated etcd members: %v", outdatedMachines.Names()))
 			for _, outdatedMachine := range outdatedMachines {
-				err := r.removeEtcdMemberAndDeleteMachine(ctx, etcdCluster, cluster, ep, outdatedMachine)
+				err := r.removeEtcdMember(ctx, etcdCluster, cluster, ep, outdatedMachine)
 				if err != nil {
 					return ctrl.Result{}, err
 				}
@@ -235,7 +235,8 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 			if address == "" {
 				return ctrl.Result{}, nil
 			}
-			if err := r.performEndpointHealthCheck(ctx, cluster, getMemberClientURL(address)); err != nil {
+			// if member passes healthcheck, that is proof that data sync happened and we can proceed further with upgrade
+			if err := r.performEndpointHealthCheck(ctx, cluster, getMemberClientURL(address), true); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
