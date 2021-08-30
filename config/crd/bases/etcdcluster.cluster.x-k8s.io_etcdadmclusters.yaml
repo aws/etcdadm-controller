@@ -50,8 +50,13 @@ spec:
                         description: EtcdImage specifies the etcd image to use by
                           etcdadm
                         type: string
+                      pauseImage:
+                        description: PauseImage specifies the image to use for the
+                          pause container
+                        type: string
                     required:
                     - bootstrapImage
+                    - pauseImage
                     type: object
                   cloudInitConfig:
                     description: CloudInitConfig specifies the configuration for the
