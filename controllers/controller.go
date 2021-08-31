@@ -261,7 +261,7 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 		log.Info("Initializing etcd cluster", "Desired", desiredReplicas, "Existing", numCurrentMachines)
 		conditions.MarkFalse(etcdCluster, etcdv1.InitializedCondition, etcdv1.WaitingForEtcdadmInitReason, clusterv1.ConditionSeverityInfo, "")
 		return r.intializeEtcdCluster(ctx, etcdCluster, cluster, ep)
-	case numCurrentMachines == 1 && conditions.IsFalse(etcdCluster, etcdv1.InitializedCondition):
+	case numCurrentMachines > 0 && conditions.IsFalse(etcdCluster, etcdv1.InitializedCondition):
 		// as soon as first etcd machine is up, etcdadm init would be run on it to initialize the etcd cluster, update the condition
 		if !etcdCluster.Status.Initialized {
 			// defer func in Reconcile will requeue it after 20 sec
