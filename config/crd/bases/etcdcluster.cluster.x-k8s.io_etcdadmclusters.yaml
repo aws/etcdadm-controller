@@ -79,6 +79,63 @@ spec:
                     items:
                       type: string
                     type: array
+                  files:
+                    description: Files specifies extra files to be passed to user_data
+                      upon creation.
+                    items:
+                      description: File defines the input for generating write_files
+                        in cloud-init.
+                      properties:
+                        content:
+                          description: Content is the actual content of the file.
+                          type: string
+                        contentFrom:
+                          description: ContentFrom is a referenced source of content
+                            to populate the file.
+                          properties:
+                            secret:
+                              description: Secret represents a secret that should
+                                populate this file.
+                              properties:
+                                key:
+                                  description: Key is the key in the secret's data
+                                    map for this value.
+                                  type: string
+                                name:
+                                  description: Name of the secret in the KubeadmBootstrapConfig's
+                                    namespace to use.
+                                  type: string
+                              required:
+                              - key
+                              - name
+                              type: object
+                          required:
+                          - secret
+                          type: object
+                        encoding:
+                          description: Encoding specifies the encoding of the file
+                            contents.
+                          enum:
+                          - base64
+                          - gzip
+                          - gzip+base64
+                          type: string
+                        owner:
+                          description: Owner specifies the ownership of the file,
+                            e.g. "root:root".
+                          type: string
+                        path:
+                          description: Path specifies the full path on disk where
+                            to store the file.
+                          type: string
+                        permissions:
+                          description: Permissions specifies the permissions to assign
+                            to the file, e.g. "0640".
+                          type: string
+                      required:
+                      - path
+                      type: object
+                    type: array
                   format:
                     description: Format specifies the output format of the bootstrap
                       data
@@ -98,6 +155,34 @@ spec:
                     items:
                       type: string
                     type: array
+                  proxy:
+                    description: Proxy holds the https and no proxy information This
+                      is only used for bottlerocket
+                    properties:
+                      httpProxy:
+                        description: HTTP Proxy
+                        type: string
+                      httpsProxy:
+                        description: HTTPS proxy
+                        type: string
+                      noProxy:
+                        description: No proxy, list of ips that should not use proxy
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  registryMirror:
+                    description: RegistryMirror holds the image registry mirror information
+                      This is only used for bottlerocket
+                    properties:
+                      caCert:
+                        description: CACert defines the CA cert for the registry mirror
+                        type: string
+                      endpoint:
+                        description: Endpoint defines the registry mirror endpoint
+                          to use for pulling images
+                        type: string
+                    type: object
                   users:
                     description: Users specifies extra users to add
                     items:
