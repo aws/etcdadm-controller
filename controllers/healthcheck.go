@@ -34,9 +34,11 @@ func (h *portNotOpenError) Error() string {
 var portNotOpenErr = &portNotOpenError{}
 
 func (r *EtcdadmClusterReconciler) performEndpointHealthCheck(ctx context.Context, cluster *clusterv1.Cluster, endpoint string, logLevelInfo bool) error {
-	if err := r.setEtcdHttpClientIfUnset(ctx, cluster); err != nil {
+	client, err := r.getEtcdHttpClient(ctx, cluster)
+	if err != nil {
 		return err
 	}
+
 	u, err := url.Parse(endpoint)
 	if err != nil {
 		return errors.Wrapf(err, "invalid etcd endpoint url")
@@ -45,7 +47,6 @@ func (r *EtcdadmClusterReconciler) performEndpointHealthCheck(ctx context.Contex
 		return portNotOpenErr
 	}
 
-	client := r.etcdHealthCheckConfig.etcdHttpClient
 	healthCheckURL := getMemberHealthCheckEndpoint(endpoint)
 	if logLevelInfo {
 		// logging non-failures only for non-periodic checks so as to not log too many events
@@ -94,23 +95,28 @@ func parseEtcdHealthCheckOutput(data []byte) error {
 	return fmt.Errorf("/health returned %q", obj.Health)
 }
 
-func (r *EtcdadmClusterReconciler) setEtcdHttpClientIfUnset(ctx context.Context, cluster *clusterv1.Cluster) error {
-	if r.etcdHealthCheckConfig.etcdHttpClient != nil {
-		return nil
+func (r *EtcdadmClusterReconciler) getEtcdHttpClient(ctx context.Context, cluster *clusterv1.Cluster) (*http.Client, error) {
+	httpClientVal, httpClientExists := r.etcdHealthCheckConfig.clusterToHttpClient.Load(cluster.UID)
+	if httpClientExists {
+		httpClient, ok := httpClientVal.(*http.Client)
+		if ok {
+			return httpClient, nil
+		}
 	}
+
 	caCertPool := x509.NewCertPool()
 	caCert, err := r.getCACert(ctx, cluster)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	caCertPool.AppendCertsFromPEM(caCert)
 
 	clientCert, err := r.getClientCerts(ctx, cluster)
 	if err != nil {
-		return errors.Wrap(err, "Error getting client cert for healthcheck")
+		return nil, errors.Wrap(err, "Error getting client cert for healthcheck")
 	}
 
-	r.etcdHealthCheckConfig.etcdHttpClient = &http.Client{
+	etcdHttpClient := &http.Client{
 		Timeout: httpClientTimeout,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
@@ -119,7 +125,8 @@ func (r *EtcdadmClusterReconciler) setEtcdHttpClientIfUnset(ctx context.Context,
 			},
 		},
 	}
-	return nil
+	r.etcdHealthCheckConfig.clusterToHttpClient.Store(cluster.UID, etcdHttpClient)
+	return etcdHttpClient, nil
 }
 
 func isPortOpen(ctx context.Context, endpoint string) bool {
