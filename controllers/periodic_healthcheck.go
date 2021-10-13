@@ -3,8 +3,8 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -23,7 +23,7 @@ const (
 )
 
 type etcdHealthCheckConfig struct {
-	etcdHttpClient *http.Client
+	clusterToHttpClient sync.Map
 }
 
 type etcdadmClusterMemberHealthConfig struct {
