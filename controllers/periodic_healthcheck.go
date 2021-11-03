@@ -31,6 +31,7 @@ type etcdadmClusterMemberHealthConfig struct {
 	unhealthyMembersToRemove  map[string]*clusterv1.Machine
 	endpointToMachineMapper   map[string]*clusterv1.Machine
 	cluster                   *clusterv1.Cluster
+	endpoints                 string
 	ownedMachines             collections.FilterableMachineCollection
 }
 
@@ -72,17 +73,9 @@ func (r *EtcdadmClusterReconciler) startHealthCheckLoop(ctx context.Context, don
 						r.Log.Info("Cluster Controller has not yet set OwnerRef on etcd cluster")
 						continue
 					}
-					etcdMachines, err := collections.GetMachinesForCluster(ctx, r.uncachedClient, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name, ec.Name))
-					if err != nil {
-						r.Log.Error(err, "Error filtering machines for etcd cluster")
-					}
 
-					ownedMachines := etcdMachines.Filter(collections.OwnedMachines(&ec))
-					endpointToMachineMapper := make(map[string]*clusterv1.Machine)
-					for _, m := range ownedMachines {
-						machineClientURL := getMemberClientURL(getEtcdMachineAddress(m))
-						endpointToMachineMapper[machineClientURL] = m
-					}
+					ownedMachines := r.getOwnedMachines(ctx, cluster, ec)
+					endpointToMachineMapper := r.createEndpointToMachinesMap(ownedMachines)
 
 					etcdadmClusterMapper[ec.UID] = etcdadmClusterMemberHealthConfig{
 						unhealthyMembersFrequency: make(map[string]int),
@@ -93,6 +86,13 @@ func (r *EtcdadmClusterReconciler) startHealthCheckLoop(ctx context.Context, don
 					}
 				} else {
 					cluster = clusterEntry.cluster
+					if ec.Status.Endpoints != clusterEntry.endpoints {
+						clusterEntry.endpoints = ec.Status.Endpoints
+						ownedMachines := r.getOwnedMachines(ctx, cluster, ec)
+						clusterEntry.ownedMachines = ownedMachines
+						clusterEntry.endpointToMachineMapper = r.createEndpointToMachinesMap(ownedMachines)
+						etcdadmClusterMapper[ec.UID] = clusterEntry
+					}
 				}
 
 				if err := r.periodicEtcdMembersHealthCheck(ctx, cluster, &ec, etcdadmClusterMapper); err != nil {
@@ -145,11 +145,14 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 
 	var retErr error
 	for machineEndpoint, machineToDelete := range currClusterHFConfig.unhealthyMembersToRemove {
-		if err := r.removeEtcdMember(ctx, etcdCluster, cluster, ep, machineToDelete); err != nil {
-			// log and save error and continue deletion of other members, deletion of this member will be retried since it's still part of unhealthyMembersToRemove
-			r.Log.Error(err, fmt.Sprintf("error removing etcd member machine %v", machineToDelete.Name))
-			retErr = multierror.Append(retErr, err)
-			continue
+		// if user delete Machine CR, removeEtcdMember won't be needed
+		if machineToDelete != nil {
+			if err := r.removeEtcdMember(ctx, etcdCluster, cluster, ep, machineToDelete); err != nil {
+				// log and save error and continue deletion of other members, deletion of this member will be retried since it's still part of unhealthyMembersToRemove
+				r.Log.Error(err, fmt.Sprintf("error removing etcd member machine %v", machineToDelete.Name))
+				retErr = multierror.Append(retErr, err)
+				continue
+			}
 		}
 		delete(currClusterHFConfig.unhealthyMembersToRemove, machineEndpoint)
 	}
@@ -160,4 +163,22 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 	etcdCluster.Status.Endpoints = strings.Join(finalEndpoints, ",")
 	etcdCluster.Status.Ready = false
 	return r.Client.Status().Update(ctx, etcdCluster)
+}
+
+func (r *EtcdadmClusterReconciler) createEndpointToMachinesMap(ownedMachines collections.FilterableMachineCollection) map[string]*clusterv1.Machine {
+	endpointToMachineMapper := make(map[string]*clusterv1.Machine)
+	for _, m := range ownedMachines {
+		machineClientURL := getMemberClientURL(getEtcdMachineAddress(m))
+		endpointToMachineMapper[machineClientURL] = m
+	}
+	return endpointToMachineMapper
+}
+
+func (r *EtcdadmClusterReconciler) getOwnedMachines(ctx context.Context, cluster *clusterv1.Cluster, ec etcdv1.EtcdadmCluster) collections.FilterableMachineCollection {
+	etcdMachines, err := collections.GetMachinesForCluster(ctx, r.uncachedClient, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name, ec.Name))
+	if err != nil {
+		r.Log.Error(err, "Error filtering machines for etcd cluster")
+	}
+
+	return etcdMachines.Filter(collections.OwnedMachines(&ec))
 }
