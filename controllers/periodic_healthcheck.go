@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -32,7 +32,7 @@ type etcdadmClusterMemberHealthConfig struct {
 	endpointToMachineMapper   map[string]*clusterv1.Machine
 	cluster                   *clusterv1.Cluster
 	endpoints                 string
-	ownedMachines             collections.FilterableMachineCollection
+	ownedMachines             collections.Machines
 }
 
 func (r *EtcdadmClusterReconciler) startHealthCheckLoop(ctx context.Context, done <-chan struct{}) {
@@ -165,7 +165,7 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 	return r.Client.Status().Update(ctx, etcdCluster)
 }
 
-func (r *EtcdadmClusterReconciler) createEndpointToMachinesMap(ownedMachines collections.FilterableMachineCollection) map[string]*clusterv1.Machine {
+func (r *EtcdadmClusterReconciler) createEndpointToMachinesMap(ownedMachines collections.Machines) map[string]*clusterv1.Machine {
 	endpointToMachineMapper := make(map[string]*clusterv1.Machine)
 	for _, m := range ownedMachines {
 		machineClientURL := getMemberClientURL(getEtcdMachineAddress(m))
@@ -174,8 +174,8 @@ func (r *EtcdadmClusterReconciler) createEndpointToMachinesMap(ownedMachines col
 	return endpointToMachineMapper
 }
 
-func (r *EtcdadmClusterReconciler) getOwnedMachines(ctx context.Context, cluster *clusterv1.Cluster, ec etcdv1.EtcdadmCluster) collections.FilterableMachineCollection {
-	etcdMachines, err := collections.GetMachinesForCluster(ctx, r.uncachedClient, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name, ec.Name))
+func (r *EtcdadmClusterReconciler) getOwnedMachines(ctx context.Context, cluster *clusterv1.Cluster, ec etcdv1.EtcdadmCluster) collections.Machines {
+	etcdMachines, err := collections.GetFilteredMachinesForCluster(ctx, r.uncachedClient, cluster, EtcdClusterMachines(cluster.Name, ec.Name))
 	if err != nil {
 		r.Log.Error(err, "Error filtering machines for etcd cluster")
 	}

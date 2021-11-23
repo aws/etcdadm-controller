@@ -23,16 +23,16 @@ import (
 	"os/signal"
 	"syscall"
 
-	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
+	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	etcdclusterclusterxk8siov1alpha3 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
 	etcdclusterv1alpha3 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
+	etcdclusterv1beta1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/mrajashree/etcdadm-controller/controllers"
 	// +kubebuilder:scaffold:imports
 )
@@ -46,10 +46,10 @@ var (
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
-	_ = etcdclusterv1alpha3.AddToScheme(scheme)
 	_ = clusterv1.AddToScheme(scheme)
 	_ = etcdbp.AddToScheme(scheme)
-	_ = etcdclusterclusterxk8siov1alpha3.AddToScheme(scheme)
+	_ = etcdclusterv1alpha3.AddToScheme(scheme)
+	_ = etcdclusterv1beta1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -91,14 +91,14 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "EtcdadmCluster")
 		os.Exit(1)
 	}
-	if err = (&etcdclusterclusterxk8siov1alpha3.EtcdadmCluster{}).SetupWebhookWithManager(mgr); err != nil {
+	if err = (&etcdclusterv1beta1.EtcdadmCluster{}).SetupWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "EtcdadmCluster")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(stopCh); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}

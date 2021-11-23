@@ -22,12 +22,12 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/collections"
@@ -64,9 +64,7 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 
 	err = c.Watch(
 		&source.Kind{Type: &clusterv1.Cluster{}},
-		&handler.EnqueueRequestsFromMapFunc{
-			ToRequests: handler.ToRequestsFunc(r.ClusterToEtcdadmCluster),
-		},
+		handler.EnqueueRequestsFromMapFunc(r.ClusterToEtcdadmCluster),
 		predicates.ClusterUnpaused(r.Log),
 	)
 	if err != nil {
@@ -88,8 +86,7 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 // +kubebuilder:rbac:groups="",resources=configmaps;events;secrets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=*,verbs=get;list;watch;create;update;patch;delete
 
-func (r *EtcdadmClusterReconciler) Reconcile(req ctrl.Request) (res ctrl.Result, reterr error) {
-	ctx := context.Background()
+func (r *EtcdadmClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, reterr error) {
 	log := r.Log.WithValues("etcdadmcluster", req.NamespacedName)
 
 	// Lookup the etcdadm cluster object
@@ -162,7 +159,7 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 		return ctrl.Result{}, err
 	}
 
-	etcdMachines, err := collections.GetMachinesForCluster(ctx, r.uncachedClient, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name, etcdCluster.Name))
+	etcdMachines, err := collections.GetFilteredMachinesForCluster(ctx, r.uncachedClient, cluster, EtcdClusterMachines(cluster.Name, etcdCluster.Name))
 	if err != nil {
 		return ctrl.Result{}, errors.Wrap(err, "Error filtering machines for etcd cluster")
 	}
@@ -275,7 +272,7 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 	case numCurrentMachines > desiredReplicas:
 		log.Info("Scaling down etcd cluster", "Desired", desiredReplicas, "Existing", numCurrentMachines)
 		// The last parameter corresponds to Machines that need to be rolled out, eg during upgrade, should always be empty here.
-		return r.scaleDownEtcdCluster(ctx, etcdCluster, cluster, ep, collections.FilterableMachineCollection{})
+		return r.scaleDownEtcdCluster(ctx, etcdCluster, cluster, ep, collections.Machines{})
 	}
 
 	return ctrl.Result{}, nil
@@ -283,8 +280,8 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 
 // ClusterToEtcdadmCluster is a handler.ToRequestsFunc to be used to enqueue requests for reconciliation
 // for EtcdadmCluster based on updates to a Cluster.
-func (r *EtcdadmClusterReconciler) ClusterToEtcdadmCluster(o handler.MapObject) []ctrl.Request {
-	c, ok := o.Object.(*clusterv1.Cluster)
+func (r *EtcdadmClusterReconciler) ClusterToEtcdadmCluster(o client.Object) []ctrl.Request {
+	c, ok := o.(*clusterv1.Cluster)
 	if !ok {
 		panic(fmt.Sprintf("Expected a Cluster but got a %T", o))
 	}

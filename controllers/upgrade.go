@@ -3,10 +3,11 @@ package controllers
 import (
 	"context"
 	"fmt"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
+
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/collections"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -17,7 +18,7 @@ func (r *EtcdadmClusterReconciler) upgradeEtcdCluster(ctx context.Context,
 	cluster *clusterv1.Cluster,
 	ec *etcdv1.EtcdadmCluster,
 	ep *EtcdPlane,
-	machinesToUpgrade collections.FilterableMachineCollection,
+	machinesToUpgrade collections.Machines,
 ) (ctrl.Result, error) {
 	/*In the absence of static DNS A records as etcd cluster endpoints, IP addresses of the etcd machines are used as etcd cluster endpoints.
 	During cluster upgrade, etcd machines need to be upgraded first, since the controlplane machines need to know the updated etcd endpoints to pass in
@@ -41,7 +42,7 @@ func (r *EtcdadmClusterReconciler) upgradeEtcdCluster(ctx context.Context,
 }
 
 func (r *EtcdadmClusterReconciler) removeFromListOfOwnedMachines(ctx context.Context, ep *EtcdPlane,
-	machinesToUpgrade collections.FilterableMachineCollection) error {
+	machinesToUpgrade collections.Machines) error {
 	machineToDelete, err := selectMachineForScaleDown(ep, machinesToUpgrade)
 	if err != nil || machineToDelete == nil {
 		return errors.Wrap(err, "failed to select machine for scale down")

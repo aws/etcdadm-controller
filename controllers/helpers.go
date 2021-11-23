@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	etcdbpv1alpha4 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
+	etcdbootstrapv1 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1beta1"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apiserver/pkg/storage/names"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/collections"
@@ -103,7 +103,7 @@ func (r *EtcdadmClusterReconciler) generateEtcdadmConfig(ctx context.Context, ec
 		Name:       ec.Name,
 		UID:        ec.UID,
 	}
-	bootstrapConfig := &etcdbpv1alpha4.EtcdadmConfig{
+	bootstrapConfig := &etcdbootstrapv1.EtcdadmConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            names.SimpleNameGenerator.GenerateName(ec.Name + "-"),
 			Namespace:       ec.Namespace,
@@ -113,7 +113,7 @@ func (r *EtcdadmClusterReconciler) generateEtcdadmConfig(ctx context.Context, ec
 		Spec: ec.Spec.EtcdadmConfigSpec,
 	}
 	bootstrapRef := &corev1.ObjectReference{
-		APIVersion: etcdbpv1alpha4.GroupVersion.String(),
+		APIVersion: etcdbootstrapv1.GroupVersion.String(),
 		Kind:       "EtcdadmConfig",
 		Name:       bootstrapConfig.GetName(),
 		Namespace:  bootstrapConfig.GetNamespace(),
@@ -163,13 +163,13 @@ func (r *EtcdadmClusterReconciler) changeClusterInitAddress(ctx context.Context,
 		// Machine being deleted is not the machine whose address is used by members joining, noop
 		return nil
 	}
-	upToDateMachines := ep.UpToDateMachines().Difference(collections.NewFilterableMachineCollection(machineToDelete))
+	upToDateMachines := ep.UpToDateMachines().Difference(collections.FromMachines(machineToDelete))
 	var newInitAddress string
 	if len(upToDateMachines) == 0 {
 		// This can happen during an upgrade if the first node picked for scale down is the init node
 		// Get the address from any of the other machines
 		r.Log.Info("First machine picked during upgrade scale down is init machine, so replacing with one of the existing machines")
-		for _, m := range ep.Machines.Difference(collections.NewFilterableMachineCollection(machineToDelete)) {
+		for _, m := range ep.Machines.Difference(collections.FromMachines(machineToDelete)) {
 			newInitAddress = getEtcdMachineAddress(m)
 			r.Log.Info(fmt.Sprintf("Picking non updated machine: %v", newInitAddress))
 			break
@@ -243,7 +243,7 @@ func stringSlicesEqual(l, r []string) bool {
 
 // Logic & implementation similar to KCP controller reconciling external MachineTemplate InfrastrucutureReference https://github.com/kubernetes-sigs/cluster-api/blob/master/controlplane/kubeadm/controllers/helpers.go#L123:41
 func (r *EtcdadmClusterReconciler) reconcileExternalReference(ctx context.Context, cluster *clusterv1.Cluster, ref corev1.ObjectReference) error {
-	if !strings.HasSuffix(ref.Kind, external.TemplateSuffix) {
+	if !strings.HasSuffix(ref.Kind, clusterv1.TemplateSuffix) {
 		return nil
 	}
 

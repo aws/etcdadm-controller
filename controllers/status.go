@@ -5,10 +5,9 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
-	"sigs.k8s.io/cluster-api/util"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/conditions"
 )
@@ -20,14 +19,14 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	// This is necessary for CRDs including scale subresources.
 	ec.Status.Selector = selector.String()
 
-	var etcdMachines collections.FilterableMachineCollection
+	var etcdMachines collections.Machines
 	var err error
 	if conditions.IsFalse(ec, etcdv1.EtcdMachinesSpecUpToDateCondition) {
 		// During upgrade with current logic, outdated machines don't get deleted right away.
 		// the controller removes their etcdadmCluster ownerRef and updates the Machine. So using uncachedClient here will fetch those changes
-		etcdMachines, err = collections.GetMachinesForCluster(ctx, r.uncachedClient, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name, ec.Name))
+		etcdMachines, err = collections.GetFilteredMachinesForCluster(ctx, r.uncachedClient, cluster, EtcdClusterMachines(cluster.Name, ec.Name))
 	} else {
-		etcdMachines, err = collections.GetMachinesForCluster(ctx, r.Client, util.ObjectKey(cluster), EtcdClusterMachines(cluster.Name, ec.Name))
+		etcdMachines, err = collections.GetFilteredMachinesForCluster(ctx, r.Client, cluster, EtcdClusterMachines(cluster.Name, ec.Name))
 	}
 	if err != nil {
 		return errors.Wrap(err, "Error filtering machines for etcd cluster")
@@ -77,7 +76,7 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	return nil
 }
 
-func getMachinesEndpoints(log logr.Logger, machines collections.FilterableMachineCollection) []string {
+func getMachinesEndpoints(log logr.Logger, machines collections.Machines) []string {
 	endpoints := make([]string, 0, len(machines))
 	for _, m := range machines {
 		log.Info("Checking if machine has address set for healthcheck", "machine", m.Name)

@@ -18,35 +18,31 @@ package controllers
 
 import (
 	"context"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"testing"
 
-	bootstrapv1alpha3 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
+	etcdbootstrapv1 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1beta1"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
-	"sigs.k8s.io/cluster-api/test/helpers"
 	"sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	// +kubebuilder:scaffold:imports
 )
 
+var ctx = ctrl.SetupSignalHandler()
+
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
-
-var cfg *rest.Config
-var k8sClient client.Client
-var testEnv *helpers.TestEnvironment
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -67,7 +63,7 @@ func setupScheme() *runtime.Scheme {
 	if err := corev1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
-	if err := bootstrapv1alpha3.AddToScheme(scheme); err != nil {
+	if err := etcdbootstrapv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
 	return scheme
@@ -113,10 +109,10 @@ func TestClusterToEtcdadmCluster(t *testing.T) {
 		},
 	}
 
-	objects := []runtime.Object{
+	objects := []client.Object{
 		cluster,
 	}
-	fakeClient := helpers.NewFakeClientWithScheme(setupScheme(), objects...)
+	fakeClient := fake.NewClientBuilder().WithObjects(objects...).Build()
 
 	expectedResult := []ctrl.Request{
 		{
@@ -131,12 +127,8 @@ func TestClusterToEtcdadmCluster(t *testing.T) {
 		Log:    log.Log,
 	}
 
-	got := r.ClusterToEtcdadmCluster(
-		handler.MapObject{
-			Meta:   cluster.GetObjectMeta(),
-			Object: cluster,
-		},
-	)
+	got := r.ClusterToEtcdadmCluster(cluster)
+
 	g.Expect(got).To(Equal(expectedResult))
 }
 
@@ -149,25 +141,25 @@ func TestReconcileNoClusterOwnerRef(t *testing.T) {
 			Name:      testEtcdadmClusterName,
 		},
 		Spec: etcdv1.EtcdadmClusterSpec{
-			EtcdadmConfigSpec: bootstrapv1alpha3.EtcdadmConfigSpec{
-				CloudInitConfig: &bootstrapv1alpha3.CloudInitConfig{
+			EtcdadmConfigSpec: etcdbootstrapv1.EtcdadmConfigSpec{
+				CloudInitConfig: &etcdbootstrapv1.CloudInitConfig{
 					Version: "v3.4.9",
 				},
 			},
 		},
 	}
 
-	objects := []runtime.Object{
+	objects := []client.Object{
 		etcdadmCluster,
 	}
-	fakeClient := helpers.NewFakeClientWithScheme(setupScheme(), objects...)
+	fakeClient := fake.NewClientBuilder().WithObjects(objects...).Build()
 
 	r := &EtcdadmClusterReconciler{
 		Client: fakeClient,
 		Log:    log.Log,
 	}
 
-	result, err := r.Reconcile(ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
+	result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
 	g.Expect(err).NotTo(HaveOccurred())
 	g.Expect(result).To(Equal(ctrl.Result{}))
 
@@ -196,25 +188,25 @@ func TestReconcilePaused(t *testing.T) {
 			Name:      testEtcdadmClusterName,
 		},
 		Spec: etcdv1.EtcdadmClusterSpec{
-			EtcdadmConfigSpec: bootstrapv1alpha3.EtcdadmConfigSpec{
-				CloudInitConfig: &bootstrapv1alpha3.CloudInitConfig{
+			EtcdadmConfigSpec: etcdbootstrapv1.EtcdadmConfigSpec{
+				CloudInitConfig: &etcdbootstrapv1.CloudInitConfig{
 					Version: "v3.4.9",
 				},
 			},
 		},
 	}
 
-	objects := []runtime.Object{
+	objects := []client.Object{
 		cluster,
 		etcdadmCluster,
 	}
-	fakeClient := helpers.NewFakeClientWithScheme(setupScheme(), objects...)
+	fakeClient := fake.NewClientBuilder().WithObjects(objects...).Build()
 
 	r := &EtcdadmClusterReconciler{
 		Client: fakeClient,
 		Log:    log.Log,
 	}
-	_, err := r.Reconcile(ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
 	g.Expect(err).NotTo(HaveOccurred())
 
 	machineList := &clusterv1.MachineList{}
@@ -241,8 +233,8 @@ func TestReconcileInitializeEtcdCluster(t *testing.T) {
 		},
 		Spec: etcdv1.EtcdadmClusterSpec{
 			Replicas: pointer.Int32Ptr(int32(3)),
-			EtcdadmConfigSpec: bootstrapv1alpha3.EtcdadmConfigSpec{
-				CloudInitConfig: &bootstrapv1alpha3.CloudInitConfig{
+			EtcdadmConfigSpec: etcdbootstrapv1.EtcdadmConfigSpec{
+				CloudInitConfig: &etcdbootstrapv1.CloudInitConfig{
 					Version: "v3.4.9",
 				},
 			},
@@ -257,27 +249,27 @@ func TestReconcileInitializeEtcdCluster(t *testing.T) {
 
 	// no machines or etcdadmConfig objects exist for the etcdadm cluster yet, so it should make a call to initialize the cluster
 	// which will create one machine and one etcdadmConfig object
-	objects := []runtime.Object{
+	objects := []client.Object{
 		cluster,
 		etcdadmCluster,
 		infraTemplate.DeepCopy(),
 	}
 
-	fakeClient := helpers.NewFakeClientWithScheme(setupScheme(), objects...)
+	fakeClient := fake.NewClientBuilder().WithObjects(objects...).Build()
 
 	r := &EtcdadmClusterReconciler{
 		Client:         fakeClient,
 		uncachedClient: fakeClient,
 		Log:            log.Log,
 	}
-	_, err := r.Reconcile(ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
 	g.Expect(err).NotTo(HaveOccurred())
 
 	machineList := &clusterv1.MachineList{}
 	g.Expect(fakeClient.List(context.Background(), machineList, client.InNamespace("test"))).To(Succeed())
 	g.Expect(len(machineList.Items)).To(Equal(1))
 
-	etcdadmConfig := &bootstrapv1alpha3.EtcdadmConfigList{}
+	etcdadmConfig := &etcdbootstrapv1.EtcdadmConfigList{}
 	g.Expect(fakeClient.List(context.Background(), etcdadmConfig, client.InNamespace("test"))).To(Succeed())
 	g.Expect(len(etcdadmConfig.Items)).To(Equal(1))
 }
