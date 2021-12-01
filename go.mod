@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/go-logr/logr v0.4.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/mrajashree/etcdadm-bootstrap-provider v0.1.2-0.20211123163925-ad9ab7779da2
+	github.com/mrajashree/etcdadm-bootstrap-provider v1.0.0-rc1
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.16.0
 	github.com/pkg/errors v0.9.1
