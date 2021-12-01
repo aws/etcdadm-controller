@@ -21,4 +21,4 @@ require (
 	sigs.k8s.io/etcdadm v0.1.3
 )
 
-replace sigs.k8s.io/cluster-api => github.com/mrajashree/cluster-api v0.3.11-0.20211122050031-4ffd0950c4af
+replace sigs.k8s.io/cluster-api => github.com/mrajashree/cluster-api v0.3.11-0.20211201172744-f230f649a4cd
