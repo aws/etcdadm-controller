@@ -58,6 +58,11 @@ spec:
                     - bootstrapImage
                     - pauseImage
                     type: object
+                  cipherSuites:
+                    description: CipherSuites is a list of comma-delimited supported
+                      TLS cipher suites, mapping to the --cipher-suites flag. Default
+                      is empty, which means that they will be auto-populated by Go.
+                    type: string
                   cloudInitConfig:
                     description: CloudInitConfig specifies the configuration for the
                       cloud-init bootstrap data
@@ -409,6 +414,11 @@ spec:
                     - bootstrapImage
                     - pauseImage
                     type: object
+                  cipherSuites:
+                    description: CipherSuites is a list of comma-delimited supported
+                      TLS cipher suites, mapping to the --cipher-suites flag. Default
+                      is empty, which means that they will be auto-populated by Go.
+                    type: string
                   cloudInitConfig:
                     description: CloudInitConfig specifies the configuration for the
                       cloud-init bootstrap data
