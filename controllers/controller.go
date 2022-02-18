@@ -24,9 +24,11 @@ import (
 	"github.com/go-logr/logr"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/client-go/tools/record"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
@@ -37,6 +39,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
@@ -45,6 +48,7 @@ import (
 type EtcdadmClusterReconciler struct {
 	controller controller.Controller
 	client.Client
+	recorder              record.EventRecorder
 	uncachedClient        client.Reader
 	Log                   logr.Logger
 	Scheme                *runtime.Scheme
@@ -72,6 +76,7 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 	}
 
 	r.controller = c
+	r.recorder = mgr.GetEventRecorderFor("etcdadm-cluster-controller")
 	r.uncachedClient = mgr.GetAPIReader()
 
 	go r.startHealthCheckLoop(ctx, done)
@@ -122,6 +127,21 @@ func (r *EtcdadmClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// Add finalizer first if it does not exist to avoid the race condition between init and delete
+	if !controllerutil.ContainsFinalizer(etcdCluster, etcdv1.EtcdadmClusterFinalizer) {
+		controllerutil.AddFinalizer(etcdCluster, etcdv1.EtcdadmClusterFinalizer)
+
+		// patch and return right away instead of reusing the main defer,
+		// because the main defer may take too much time to get cluster status
+		patchOpts := []patch.Option{patch.WithStatusObservedGeneration{}}
+		if err := patchHelper.Patch(ctx, etcdCluster, patchOpts...); err != nil {
+			log.Error(err, "Failed to patch EtcdadmCluster to add finalizer")
+			return ctrl.Result{}, err
+		}
+
+		return ctrl.Result{}, nil
+	}
+
 	defer func() {
 		// Always attempt to update status.
 		if err := r.updateStatus(ctx, etcdCluster, cluster); err != nil {
@@ -147,6 +167,12 @@ func (r *EtcdadmClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 			}
 		}
 	}()
+
+	if !etcdCluster.ObjectMeta.DeletionTimestamp.IsZero() {
+		// Handle deletion reconciliation loop.
+		return r.reconcileDelete(ctx, etcdCluster, cluster)
+	}
+
 	return r.reconcile(ctx, etcdCluster, cluster)
 }
 
@@ -276,6 +302,47 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *EtcdadmClusterReconciler) reconcileDelete(ctx context.Context, etcdCluster *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) (ctrl.Result, error) {
+	log := ctrl.LoggerFrom(ctx, "cluster", cluster.Name)
+	log.Info("Reconcile EtcdadmCluster deletion")
+
+	etcdMachines, err := collections.GetFilteredMachinesForCluster(ctx, r.uncachedClient, cluster, EtcdClusterMachines(cluster.Name, etcdCluster.Name))
+	if err != nil {
+		return ctrl.Result{}, errors.Wrap(err, "Error filtering machines for etcd cluster")
+	}
+
+	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster))
+
+	if len(ownedMachines) == 0 {
+		// If no etcd machines are left, remove the finalizer
+		controllerutil.RemoveFinalizer(etcdCluster, etcdv1.EtcdadmClusterFinalizer)
+		return ctrl.Result{}, nil
+	}
+
+	// This aggregates the state of all machines
+	conditions.SetAggregate(etcdCluster, etcdv1.EtcdMachinesReadyCondition, ownedMachines.ConditionGetters(), conditions.AddSourceRef(), conditions.WithStepCounterIf(false))
+
+	// Delete etcd machines
+	machinesToDelete := ownedMachines.Filter(collections.Not(collections.HasDeletionTimestamp))
+	var errs []error
+	for _, m := range machinesToDelete {
+		logger := log.WithValues("machine", m)
+		if err := r.Client.Delete(ctx, m); err != nil && !apierrors.IsNotFound(err) {
+			logger.Error(err, "Failed to cleanup owned machine")
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		err := kerrors.NewAggregate(errs)
+		r.recorder.Eventf(etcdCluster, corev1.EventTypeWarning, "FailedDelete",
+			"Failed to delete etcd Machines for cluster %s/%s: %v", cluster.Namespace, cluster.Name, err)
+		return ctrl.Result{}, err
+	}
+	conditions.MarkFalse(etcdCluster, etcdv1.EtcdClusterResizeCompleted, clusterv1.DeletingReason, clusterv1.ConditionSeverityInfo, "")
+	// requeue to check if machines are deleted and remove the finalizer
+	return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 }
 
 // ClusterToEtcdadmCluster is a handler.ToRequestsFunc to be used to enqueue requests for reconciliation
