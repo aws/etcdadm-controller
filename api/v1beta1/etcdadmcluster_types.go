@@ -25,6 +25,10 @@ import (
 
 const (
 	UpgradeInProgressAnnotation = "etcdcluster.cluster.x-k8s.io/upgrading"
+
+	// EtcdadmClusterFinalizer is the finalizer applied to EtcdadmCluster resources
+	// by its managing controller.
+	EtcdadmClusterFinalizer = "etcdcluster.cluster.x-k8s.io"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
