@@ -39,4 +39,10 @@ const (
 
 	// EtcdClusterHasOutdatedMembersReason shows that some of the etcd members are out-of-date
 	EtcdClusterHasOutdatedMembersReason = "EtcdClusterHasOutdatedMachines"
+
+	// EtcdEndpointsAvailable shows that all endpoints of the etcd cluster passed healthcheck and are available
+	EtcdEndpointsAvailable = "EtcdEndpointsAvailable"
+
+	// WaitingForEtcdadmEndpointsToPassHealthcheckReason shows that some of the etcd members are not ready yet
+	WaitingForEtcdadmEndpointsToPassHealthcheckReason = "WaitingForEtcdadmEndpointsToPassHealthcheck"
 )
