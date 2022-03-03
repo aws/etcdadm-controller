@@ -2,14 +2,17 @@ package controllers
 
 import (
 	"context"
+	"sort"
 	"strings"
 
 	"github.com/go-logr/logr"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/conditions"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) error {
@@ -69,8 +72,30 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 
 	// etcd ready when all machines have address set
 	ec.Status.Ready = true
-	ec.Status.Endpoints = strings.Join(endpoints, ",")
 	conditions.MarkTrue(ec, etcdv1.EtcdEndpointsAvailable)
+
+	sort.Strings(endpoints)
+	currEndpoints := strings.Join(endpoints, ",")
+
+	log.Info("Comparing current and previous endpoints")
+	// Checking if endpoints have changed. This avoids unnecessary client calls
+	// to get and update the Secret containing the endpoints
+	if ec.Status.Endpoints != currEndpoints {
+		log.Info("Updating endpoints annotation, and the Secret containing etcdadm join address")
+		ec.Status.Endpoints = currEndpoints
+		secretNameNs := client.ObjectKey{Name: ec.Status.InitMachineAddress, Namespace: cluster.Namespace}
+		secretInitAddress := &corev1.Secret{}
+		if err := r.Client.Get(ctx, secretNameNs, secretInitAddress); err != nil {
+			return err
+		}
+		secretInitAddress.Data["address"] = []byte(getEtcdMachineAddressFromClientURL(endpoints[0]))
+		secretInitAddress.Data["clientUrls"] = []byte(ec.Status.Endpoints)
+		r.Log.Info("Updating init secret with endpoints")
+		if err := r.Client.Update(ctx, secretInitAddress); err != nil {
+			return err
+		}
+	}
+
 	// set creationComplete to true, this is only set once after the first set of endpoints are ready and never unset, to indicate that the cluster has been created
 	ec.Status.CreationComplete = true
 

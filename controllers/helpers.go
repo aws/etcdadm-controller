@@ -3,6 +3,8 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"strings"
 
 	etcdbootstrapv1 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1beta1"
@@ -18,10 +20,13 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
-	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	httpsPrefix       = "https://"
+	etcdClientURLPort = "2379"
 )
 
 // EtcdMachinesSelectorForCluster returns the label selector necessary to get etcd machines for a given cluster.
@@ -152,43 +157,6 @@ func (r *EtcdadmClusterReconciler) generateMachine(ctx context.Context, ec *etcd
 	return nil
 }
 
-func (r *EtcdadmClusterReconciler) changeClusterInitAddress(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane, machineAddress string, machineToDelete *clusterv1.Machine) error {
-	secretNameNs := client.ObjectKey{Name: ec.Status.InitMachineAddress, Namespace: cluster.Namespace}
-	secretInitAddress := &corev1.Secret{}
-	if err := r.Client.Get(ctx, secretNameNs, secretInitAddress); err != nil {
-		return err
-	}
-	currentInitAddress := string(secretInitAddress.Data["address"])
-	if currentInitAddress != machineAddress {
-		// Machine being deleted is not the machine whose address is used by members joining, noop
-		return nil
-	}
-	upToDateMachines := ep.UpToDateMachines().Difference(collections.FromMachines(machineToDelete))
-	var newInitAddress string
-	if len(upToDateMachines) == 0 {
-		// This can happen during an upgrade if the first node picked for scale down is the init node
-		// Get the address from any of the other machines
-		r.Log.Info("First machine picked during upgrade scale down is init machine, so replacing with one of the existing machines")
-		for _, m := range ep.Machines.Difference(collections.FromMachines(machineToDelete)) {
-			newInitAddress = getEtcdMachineAddress(m)
-			r.Log.Info(fmt.Sprintf("Picking non updated machine: %v", newInitAddress))
-			break
-		}
-	} else {
-		for _, m := range upToDateMachines {
-			newInitAddress = getEtcdMachineAddress(m)
-			r.Log.Info(fmt.Sprintf("Picking fully updated machine: %v", newInitAddress))
-			break
-		}
-	}
-	if newInitAddress == "" {
-		return fmt.Errorf("Could not find a machine to use to join etcd cluster as a member")
-	}
-
-	secretInitAddress.Data["address"] = []byte(newInitAddress)
-	return r.Client.Update(ctx, secretInitAddress)
-}
-
 func getEtcdMachineAddress(machine *clusterv1.Machine) string {
 	var foundAddress bool
 	var machineAddress string
@@ -211,7 +179,13 @@ func getEtcdMachineAddress(machine *clusterv1.Machine) string {
 }
 
 func getMemberClientURL(address string) string {
-	return fmt.Sprintf("https://%s:2379", address)
+	return fmt.Sprintf("%s%s:%s", httpsPrefix, address, etcdClientURLPort)
+}
+
+func getEtcdMachineAddressFromClientURL(clientURL string) string {
+	u, _ := url.ParseRequestURI(clientURL)
+	host, _, _ := net.SplitHostPort(u.Host)
+	return host
 }
 
 func getMemberHealthCheckEndpoint(clientURL string) string {

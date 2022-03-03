@@ -9,7 +9,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
@@ -111,8 +110,14 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 		err := r.performEndpointHealthCheck(ctx, cluster, endpoint, false)
 		if err != nil {
 			// member failed healthcheck so add it to unhealthy map or update it's unhealthy count
-			currClusterHFConfig.unhealthyMembersFrequency[endpoint]++
 			r.Log.Info("Member failed healthcheck, adding to unhealthy members list", "member", endpoint)
+			currClusterHFConfig.unhealthyMembersFrequency[endpoint]++
+			// if machine corresponding to the member does not exist, remove that member without waiting for max unhealthy count to be reached
+			m, ok := currClusterHFConfig.endpointToMachineMapper[endpoint]
+			if !ok || m == nil {
+				r.Log.Info("Machine for member does not exist", "member", endpoint)
+				currClusterHFConfig.unhealthyMembersToRemove[endpoint] = m
+			}
 			if currClusterHFConfig.unhealthyMembersFrequency[endpoint] >= maxUnhealthyCount {
 				r.Log.Info("Adding to list of unhealthy members to remove", "member", endpoint)
 				// member has been unresponsive, add the machine to unhealthyMembersToRemove queue
@@ -138,21 +143,13 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 		}
 	}
 
-	ep, err := NewEtcdPlane(ctx, r.Client, currClusterHFConfig.cluster, etcdCluster, currClusterHFConfig.ownedMachines)
-	if err != nil {
-		return errors.Wrap(err, "Error initializing internal object EtcdPlane")
-	}
-
 	var retErr error
 	for machineEndpoint, machineToDelete := range currClusterHFConfig.unhealthyMembersToRemove {
-		// if user delete Machine CR, removeEtcdMember won't be needed
-		if machineToDelete != nil {
-			if err := r.removeEtcdMember(ctx, etcdCluster, cluster, ep, machineToDelete); err != nil {
-				// log and save error and continue deletion of other members, deletion of this member will be retried since it's still part of unhealthyMembersToRemove
-				r.Log.Error(err, fmt.Sprintf("error removing etcd member machine %v", machineToDelete.Name))
-				retErr = multierror.Append(retErr, err)
-				continue
-			}
+		if err := r.removeEtcdMachine(ctx, etcdCluster, cluster, machineToDelete, getEtcdMachineAddressFromClientURL(machineEndpoint)); err != nil {
+			// log and save error and continue deletion of other members, deletion of this member will be retried since it's still part of unhealthyMembersToRemove
+			r.Log.Error(err, fmt.Sprintf("error removing etcd member machine %v", machineEndpoint))
+			retErr = multierror.Append(retErr, err)
+			continue
 		}
 		delete(currClusterHFConfig.unhealthyMembersToRemove, machineEndpoint)
 	}

@@ -42,14 +42,11 @@ func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec 
 	if err != nil || machineToDelete == nil {
 		return ctrl.Result{}, errors.Wrap(err, "failed to select machine for scale down")
 	}
-	return ctrl.Result{}, r.removeEtcdMember(ctx, ec, cluster, ep, machineToDelete)
-}
-func (r *EtcdadmClusterReconciler) removeEtcdMember(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane, machineToDelete *clusterv1.Machine) error {
 	machineAddress := getEtcdMachineAddress(machineToDelete)
+	return ctrl.Result{}, r.removeEtcdMachine(ctx, ec, cluster, machineToDelete, machineAddress)
+}
+func (r *EtcdadmClusterReconciler) removeEtcdMachine(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, machineToDelete *clusterv1.Machine, machineAddress string) error {
 	peerURL := fmt.Sprintf("https://%s:2380", machineAddress)
-	if err := r.changeClusterInitAddress(ctx, ec, cluster, ep, machineAddress, machineToDelete); err != nil {
-		return err
-	}
 	etcdClient, err := r.generateEtcdClient(ctx, cluster, ec.Status.Endpoints)
 	if err != nil {
 		return fmt.Errorf("error creating etcd client, err: %v", err)
@@ -106,17 +103,21 @@ func (r *EtcdadmClusterReconciler) removeEtcdMemberAndDeleteMachine(ctx context.
 			if err != nil {
 				return fmt.Errorf("failed to remove etcd member %s with error %v", localMember.Name, err)
 			}
-			if err := r.Client.Delete(ctx, machineToDelete); err != nil && !apierrors.IsNotFound(err) && !apierrors.IsGone(err) {
-				return fmt.Errorf("failed to delete etcd machine %s with error %v", machineToDelete.Name, err)
+			if machineToDelete != nil {
+				if err := r.Client.Delete(ctx, machineToDelete); err != nil && !apierrors.IsNotFound(err) && !apierrors.IsGone(err) {
+					return fmt.Errorf("failed to delete etcd machine %s with error %v", machineToDelete.Name, err)
+				}
 			}
 		} else {
 			log.Info("Not removing last member in the cluster", "member", localMember.Name)
 		}
 	} else {
 		log.Info("Member was removed")
-		// this could happen if the etcd member was removed through etcdctl calls, ensure that the machine gets deleted too
-		if err := r.Client.Delete(ctx, machineToDelete); err != nil && !apierrors.IsNotFound(err) && !apierrors.IsGone(err) {
-			return fmt.Errorf("failed to delete etcd machine %s with error %v", machineToDelete.Name, err)
+		if machineToDelete != nil {
+			// this could happen if the etcd member was removed through etcdctl calls, ensure that the machine gets deleted too
+			if err := r.Client.Delete(ctx, machineToDelete); err != nil && !apierrors.IsNotFound(err) && !apierrors.IsGone(err) {
+				return fmt.Errorf("failed to delete etcd machine %s with error %v", machineToDelete.Name, err)
+			}
 		}
 	}
 	return nil
