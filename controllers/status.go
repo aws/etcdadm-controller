@@ -70,6 +70,7 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	// etcd ready when all machines have address set
 	ec.Status.Ready = true
 	ec.Status.Endpoints = strings.Join(endpoints, ",")
+	conditions.MarkTrue(ec, etcdv1.EtcdEndpointsAvailable)
 	// set creationComplete to true, this is only set once after the first set of endpoints are ready and never unset, to indicate that the cluster has been created
 	ec.Status.CreationComplete = true
 
