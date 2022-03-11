@@ -210,8 +210,8 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 			outdatedMachines := etcdMachines.Difference(ownedMachines)
 			log.Info(fmt.Sprintf("Controlplane upgrade has completed, deleting older outdated etcd members: %v", outdatedMachines.Names()))
 			for _, outdatedMachine := range outdatedMachines {
-				err := r.removeEtcdMember(ctx, etcdCluster, cluster, ep, outdatedMachine)
-				if err != nil {
+				outdatedMachineAddress := getEtcdMachineAddress(outdatedMachine)
+				if err := r.removeEtcdMachine(ctx, etcdCluster, cluster, outdatedMachine, outdatedMachineAddress); err != nil {
 					return ctrl.Result{}, err
 				}
 			}
