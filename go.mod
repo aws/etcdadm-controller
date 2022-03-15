@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/go-logr/logr v0.4.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/mrajashree/etcdadm-bootstrap-provider v1.0.0-rc4
+	github.com/mrajashree/etcdadm-bootstrap-provider v1.0.0-rc5
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.16.0
 	github.com/pkg/errors v0.9.1
@@ -21,4 +21,4 @@ require (
 	sigs.k8s.io/etcdadm v0.1.5
 )
 
-replace sigs.k8s.io/cluster-api => github.com/mrajashree/cluster-api v1.0.2-custom
+replace sigs.k8s.io/cluster-api => github.com/mrajashree/cluster-api v1.0.3-custom
