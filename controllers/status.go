@@ -88,7 +88,11 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 		if err := r.Client.Get(ctx, secretNameNs, secretInitAddress); err != nil {
 			return err
 		}
-		secretInitAddress.Data["address"] = []byte(getEtcdMachineAddressFromClientURL(endpoints[0]))
+		if len(endpoints) > 0 {
+			secretInitAddress.Data["address"] = []byte(getEtcdMachineAddressFromClientURL(endpoints[0]))
+		} else {
+			secretInitAddress.Data["address"] = []byte("")
+		}
 		secretInitAddress.Data["clientUrls"] = []byte(ec.Status.Endpoints)
 		r.Log.Info("Updating init secret with endpoints")
 		if err := r.Client.Update(ctx, secretInitAddress); err != nil {
