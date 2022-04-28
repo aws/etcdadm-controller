@@ -183,8 +183,14 @@ func getMemberClientURL(address string) string {
 }
 
 func getEtcdMachineAddressFromClientURL(clientURL string) string {
-	u, _ := url.ParseRequestURI(clientURL)
-	host, _, _ := net.SplitHostPort(u.Host)
+	u, err := url.ParseRequestURI(clientURL)
+	if err != nil {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		return ""
+	}
 	return host
 }
 
