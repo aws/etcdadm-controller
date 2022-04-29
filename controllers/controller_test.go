@@ -22,6 +22,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"testing"
+	"time"
 
 	etcdbootstrapv1 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1beta1"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
@@ -195,6 +196,36 @@ func TestReconcilePaused(t *testing.T) {
 	g.Expect(err).NotTo(HaveOccurred())
 }
 
+// If cluster infrastructure is not ready, reconcile won't proceed and will requeue etcdadmCluster to be processed after 5 sec
+func TestReconcileClusterInfrastructureNotReady(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster := newClusterWithExternalEtcd()
+	cluster.Status.InfrastructureReady = false
+
+	etcdadmCluster := newEtcdadmCluster(cluster)
+	etcdadmCluster.ObjectMeta.Finalizers = []string{}
+
+	// no machines or etcdadmConfig objects exist for the etcdadm cluster yet, so it should make a call to initialize the cluster
+	// which will create one machine and one etcdadmConfig object
+	objects := []client.Object{
+		cluster,
+		etcdadmCluster,
+		infraTemplate.DeepCopy(),
+	}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+
+	r := &EtcdadmClusterReconciler{
+		Client:         fakeClient,
+		uncachedClient: fakeClient,
+		Log:            log.Log,
+	}
+	result, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(result).To(Equal(ctrl.Result{Requeue: false, RequeueAfter: 5 * time.Second}))
+}
+
 func TestReconcileNoFinalizer(t *testing.T) {
 	g := NewWithT(t)
 
@@ -362,42 +393,6 @@ func TestReconcileScaleUpEtcdCluster(t *testing.T) {
 	g.Expect(len(machineList.Items)).To(Equal(2))
 }
 
-func TestReconcileScaleDownEtcdCluster(t *testing.T) {
-	g := NewWithT(t)
-
-	cluster := newClusterWithExternalEtcd()
-	etcdadmCluster := newEtcdadmCluster(cluster)
-	etcdadmCluster.Spec.Replicas = pointer.Int32Ptr(int32(1))
-
-	// CAPI machine controller has set status.Initialized to true, after the first etcd Machine is created, and after creating the Secret containing etcd init address
-	etcdadmCluster.Status.Initialized = true
-	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
-	conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
-	machine1 := newEtcdMachine(etcdadmCluster, cluster)
-	machine2 := newEtcdMachine(etcdadmCluster, cluster)
-
-	objects := []client.Object{
-		cluster,
-		etcdadmCluster,
-		infraTemplate.DeepCopy(),
-		machine1,
-		machine2,
-	}
-	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
-
-	r := &EtcdadmClusterReconciler{
-		Client:         fakeClient,
-		uncachedClient: fakeClient,
-		Log:            log.Log,
-	}
-	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
-	g.Expect(err).NotTo(HaveOccurred())
-
-	machineList := &clusterv1.MachineList{}
-	g.Expect(fakeClient.List(context.Background(), machineList, client.InNamespace("test"))).To(Succeed())
-	g.Expect(len(machineList.Items)).To(Equal(1))
-}
-
 // newClusterWithExternalEtcd return a CAPI cluster object with managed external etcd ref
 func newClusterWithExternalEtcd() *clusterv1.Cluster {
 	return &clusterv1.Cluster{
@@ -422,6 +417,9 @@ func newClusterWithExternalEtcd() *clusterv1.Cluster {
 				Name:       testInfrastructureTemplateName,
 				APIVersion: "infra.io/v1",
 			},
+		},
+		Status: clusterv1.ClusterStatus{
+			InfrastructureReady: true,
 		},
 	}
 }
@@ -459,27 +457,6 @@ func newEtcdadmCluster(cluster *clusterv1.Cluster) *etcdv1.EtcdadmCluster {
 }
 
 func newEtcdMachine(etcdadmCluster *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) *clusterv1.Machine {
-	//fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).Build()
-	//infraCloneOwner := &metav1.OwnerReference{
-	//	APIVersion: etcdv1.GroupVersion.String(),
-	//	Kind:       "EtcdadmCluster",
-	//	Name:       etcdadmCluster.Name,
-	//	UID:        etcdadmCluster.UID,
-	//}
-	//
-	//infraRef, err := external.CloneTemplate(ctx, &external.CloneTemplateInput{
-	//	Client:      fakeClient,
-	//	TemplateRef: &etcdadmCluster.Spec.InfrastructureTemplate,
-	//	Namespace:   etcdadmCluster.Namespace,
-	//	OwnerRef:    infraCloneOwner,
-	//	ClusterName: cluster.Name,
-	//	Labels:      EtcdLabelsForCluster(cluster.Name, etcdadmCluster.Name),
-	//})
-	//
-	//if err != nil {
-	//	panic(err)
-	//}
-
 	return &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      names.SimpleNameGenerator.GenerateName(etcdadmCluster.Name + "-"),
@@ -497,9 +474,6 @@ func newEtcdMachine(etcdadmCluster *etcdv1.EtcdadmCluster, cluster *clusterv1.Cl
 				Name:       infraTemplate.GetName(),
 				Namespace:  infraTemplate.GetNamespace(),
 			},
-			//Bootstrap: clusterv1.Bootstrap{
-			//	ConfigRef: bootstrapRef,
-			//},
 		},
 	}
 }
