@@ -69,7 +69,7 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 	err = c.Watch(
 		&source.Kind{Type: &clusterv1.Cluster{}},
 		handler.EnqueueRequestsFromMapFunc(r.ClusterToEtcdadmCluster),
-		predicates.ClusterUnpaused(r.Log),
+		predicates.ClusterUnpausedAndInfrastructureReady(r.Log),
 	)
 	if err != nil {
 		return errors.Wrap(err, "failed adding Watch for Clusters to controller manager")
@@ -113,6 +113,10 @@ func (r *EtcdadmClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	if cluster == nil {
 		log.Info("Cluster Controller has not yet set OwnerRef on etcd")
 		return ctrl.Result{}, nil
+	}
+	if !cluster.Status.InfrastructureReady {
+		log.Info("Infrastructure cluster is not yet ready")
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
 	if annotations.IsPaused(cluster, etcdCluster) {
