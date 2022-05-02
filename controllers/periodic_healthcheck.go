@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/conditions"
 )
@@ -54,6 +55,10 @@ func (r *EtcdadmClusterReconciler) startHealthCheckLoop(ctx context.Context, don
 			for _, ec := range etcdClusters.Items {
 				if !ec.Status.CreationComplete {
 					// etcdCluster not fully provisioned yet
+					continue
+				}
+				if annotations.HasPaused(&ec) {
+					r.Log.Info(fmt.Sprintf("Reconciliation is paused for etcdadmCluster %s", ec.Name))
 					continue
 				}
 				if conditions.IsFalse(&ec, etcdv1.EtcdMachinesSpecUpToDateCondition) {
