@@ -11,6 +11,7 @@ require (
 	github.com/onsi/ginkgo v1.16.4
 	github.com/raviqqe/liche v0.0.0-20200229003944-f57a5d1c5be4
 	github.com/sergi/go-diff v1.1.0 // indirect
+	github.com/valyala/fasthttp v1.34.0
 	golang.org/x/tools v0.1.5
 	k8s.io/code-generator v0.22.2
 	sigs.k8s.io/controller-tools v0.7.0
