@@ -7,9 +7,11 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - etcdcluster.cluster.x-k8s.io
+  - ""
   resources:
-  - etcdadmclusters
+  - configmaps
+  - events
+  - secrets
   verbs:
   - create
   - delete
@@ -19,19 +21,10 @@ rules:
   - update
   - watch
 - apiGroups:
-  - etcdcluster.cluster.x-k8s.io
+  - bootstrap.cluster.x-k8s.io
   resources:
-  - etcdadmclusters/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  - events
-  - secrets
+  - etcdadmconfigs
+  - etcdadmconfigs/status
   verbs:
   - create
   - delete
@@ -63,9 +56,9 @@ rules:
   - update
   - watch
 - apiGroups:
-  - bootstrap.cluster.x-k8s.io
+  - etcdcluster.cluster.x-k8s.io
   resources:
-  - etcdadmconfigs
+  - etcdadmclusters
   verbs:
   - create
   - delete
@@ -75,9 +68,9 @@ rules:
   - update
   - watch
 - apiGroups:
-  - bootstrap.cluster.x-k8s.io
+  - etcdcluster.cluster.x-k8s.io
   resources:
-  - etcdadmconfigs/status
+  - etcdadmclusters/status
   verbs:
   - get
   - patch

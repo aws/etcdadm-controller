@@ -1,0 +1,58 @@
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-etcdcluster-cluster-x-k8s-io-v1beta1-etcdadmcluster
+  failurePolicy: Fail
+  name: metcdadmcluster.kb.io
+  rules:
+  - apiGroups:
+    - etcdcluster.cluster.x-k8s.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - etcdadmclusters
+  sideEffects: None
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  creationTimestamp: null
+  name: validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-etcdcluster-cluster-x-k8s-io-v1beta1-etcdadmcluster
+  failurePolicy: Fail
+  name: vetcdadmcluster.kb.io
+  rules:
+  - apiGroups:
+    - etcdcluster.cluster.x-k8s.io
+    apiVersions:
+    - v1beta1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - etcdadmclusters
+  sideEffects: None

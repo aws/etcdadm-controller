@@ -14,16 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha4
+package v1beta1
 
 import (
-	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha4"
+	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 )
 
 const (
-	EtcdCertsGeneratedCondition string = "EtcdCertsGenerated"
+	UpgradeInProgressAnnotation = "etcdcluster.cluster.x-k8s.io/upgrading"
+
+	// EtcdadmClusterFinalizer is the finalizer applied to EtcdadmCluster resources
+	// by its managing controller.
+	EtcdadmClusterFinalizer = "etcdcluster.cluster.x-k8s.io"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -35,9 +40,6 @@ type EtcdadmClusterSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	Replicas *int32 `json:"replicas,omitempty"`
-
-	// +optional
-	Version string `json:"version,omitempty"`
 
 	// InfrastructureTemplate is a required reference to a custom resource
 	// offered by an infrastructure provider.
@@ -63,11 +65,17 @@ type EtcdadmClusterStatus struct {
 	// +optional
 	Initialized bool `json:"initialized"`
 
+	// Ready reflects the state of the etcd cluster, whether all of its members have passed healthcheck and are ready to serve requests or not.
+	// +optional
+	Ready bool `json:"ready"`
+
+	// CreationComplete gets set to true once the etcd cluster is created. Its value never changes after that.
+	// It is used as a way to indicate that the periodic healthcheck loop can be run for the particular etcd cluster.
 	// +optional
 	CreationComplete bool `json:"creationComplete"`
 
 	// +optional
-	Endpoint string `json:"endpoint"`
+	Endpoints string `json:"endpoints"`
 
 	// Selector is the label selector in string format to avoid introspection
 	// by clients, and is used to provide the CRD-based integration for the
@@ -76,17 +84,35 @@ type EtcdadmClusterStatus struct {
 	// More info about label selectors: http://kubernetes.io/docs/user-guide/labels#label-selectors
 	// +optional
 	Selector string `json:"selector,omitempty"`
+
+	// ObservedGeneration is the latest generation observed by the controller.
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// Conditions defines current service state of the EtcdadmCluster.
+	// +optional
+	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// EtcdadmCluster is the Schema for the etcdclusters API
+// +kubebuilder:storageversion
+
+// EtcdadmCluster is the Schema for the etcdadmclusters API
 type EtcdadmCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   EtcdadmClusterSpec   `json:"spec,omitempty"`
 	Status EtcdadmClusterStatus `json:"status,omitempty"`
+}
+
+func (in *EtcdadmCluster) GetConditions() clusterv1.Conditions {
+	return in.Status.Conditions
+}
+
+func (in *EtcdadmCluster) SetConditions(conditions clusterv1.Conditions) {
+	in.Status.Conditions = conditions
 }
 
 // +kubebuilder:object:root=true

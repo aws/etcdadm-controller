@@ -2,28 +2,35 @@ package controllers
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"fmt"
-	"net/http"
+	"sort"
 	"strings"
 
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
+	"github.com/go-logr/logr"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	corev1 "k8s.io/api/core/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/collections"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/cluster-api/util/conditions"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) error {
-	log := ctrl.LoggerFrom(ctx, "cluster", cluster.Name)
-	log.Info("update status is called")
-	selector := collections.EtcdPlaneSelectorForCluster(cluster.Name)
+	log := r.Log.WithName(ec.Name)
+	selector := EtcdMachinesSelectorForCluster(cluster.Name, ec.Name)
 	// Copy label selector to its status counterpart in string format.
 	// This is necessary for CRDs including scale subresources.
 	ec.Status.Selector = selector.String()
 
-	etcdMachines, err := collections.GetFilteredMachinesForCluster(ctx, r.Client, cluster, collections.EtcdClusterMachines(cluster.Name))
+	var etcdMachines collections.Machines
+	var err error
+	if conditions.IsFalse(ec, etcdv1.EtcdMachinesSpecUpToDateCondition) {
+		// During upgrade with current logic, outdated machines don't get deleted right away.
+		// the controller removes their etcdadmCluster ownerRef and updates the Machine. So using uncachedClient here will fetch those changes
+		etcdMachines, err = collections.GetFilteredMachinesForCluster(ctx, r.uncachedClient, cluster, EtcdClusterMachines(cluster.Name, ec.Name))
+	} else {
+		etcdMachines, err = collections.GetFilteredMachinesForCluster(ctx, r.Client, cluster, EtcdClusterMachines(cluster.Name, ec.Name))
+	}
 	if err != nil {
 		return errors.Wrap(err, "Error filtering machines for etcd cluster")
 	}
@@ -34,76 +41,103 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	}
 
 	desiredReplicas := *ec.Spec.Replicas
-
-	// set basic data that does not require interacting with the workload cluster
 	ec.Status.ReadyReplicas = int32(len(ownedMachines))
 
-	// Return early if the deletion timestamp is set, because we don't want to try to connect to the workload cluster
-	// and we don't want to report resize condition (because it is set to deleting into reconcile delete).
 	if !ec.DeletionTimestamp.IsZero() {
 		return nil
 	}
 
-	if ec.Status.ReadyReplicas == desiredReplicas {
-		var endpoint string
-		for _, m := range ownedMachines {
-			if len(m.Status.Addresses) == 0 {
-				return nil
-			}
-			// TODO: save endpoint on the EtcdadmConfig status object
-			if endpoint != "" {
-				endpoint += ","
-			}
-			endpoint += fmt.Sprintf("https://%s:2379", getEtcdMachineAddress(m))
-		}
-		log.Info(fmt.Sprintf("running endpoint checks on %v", endpoint))
-		if err := r.doEtcdHealthCheck(ctx, cluster, endpoint); err != nil {
+	readyReplicas := ec.Status.ReadyReplicas
+
+	if readyReplicas < desiredReplicas {
+		conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleUpInProgressReason, clusterv1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
+		return nil
+	}
+
+	if readyReplicas > desiredReplicas {
+		conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleDownInProgressReason, clusterv1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
+		return nil
+	}
+
+	conditions.MarkTrue(ec, etcdv1.EtcdClusterResizeCompleted)
+
+	endpoints := getMachinesEndpoints(log, ownedMachines)
+	if len(endpoints) == 0 {
+		return nil
+	}
+
+	log.Info("Running healthcheck on machines", "endpoints", endpoints)
+	if machinesReady, err := r.performMachinesHealthCheck(ctx, log, endpoints, cluster); err != nil {
+		ec.Status.Ready = false
+		return err
+	} else if !machinesReady {
+		return nil
+	}
+
+	// etcd ready when all machines have address set
+	ec.Status.Ready = true
+	conditions.MarkTrue(ec, etcdv1.EtcdEndpointsAvailable)
+
+	sort.Strings(endpoints)
+	currEndpoints := strings.Join(endpoints, ",")
+
+	log.Info("Comparing current and previous endpoints")
+	// Checking if endpoints have changed. This avoids unnecessary client calls
+	// to get and update the Secret containing the endpoints
+	if ec.Status.Endpoints != currEndpoints {
+		log.Info("Updating endpoints annotation, and the Secret containing etcdadm join address")
+		ec.Status.Endpoints = currEndpoints
+		secretNameNs := client.ObjectKey{Name: ec.Status.InitMachineAddress, Namespace: cluster.Namespace}
+		secretInitAddress := &corev1.Secret{}
+		if err := r.Client.Get(ctx, secretNameNs, secretInitAddress); err != nil {
 			return err
 		}
-		// etcd ready when all machines have address set
-		ec.Status.CreationComplete = true
-		ec.Status.Endpoint = endpoint
+		if len(endpoints) > 0 {
+			secretInitAddress.Data["address"] = []byte(getEtcdMachineAddressFromClientURL(endpoints[0]))
+		} else {
+			secretInitAddress.Data["address"] = []byte("")
+		}
+		secretInitAddress.Data["clientUrls"] = []byte(ec.Status.Endpoints)
+		r.Log.Info("Updating init secret with endpoints")
+		if err := r.Client.Update(ctx, secretInitAddress); err != nil {
+			return err
+		}
 	}
+
+	// set creationComplete to true, this is only set once after the first set of endpoints are ready and never unset, to indicate that the cluster has been created
+	ec.Status.CreationComplete = true
+
 	return nil
 }
 
-func (r *EtcdadmClusterReconciler) doEtcdHealthCheck(ctx context.Context, cluster *clusterv1.Cluster, endpoints string) error {
-	caCertPool := x509.NewCertPool()
-	caCert, err := r.getCACert(ctx, cluster)
-	if err != nil {
-		return err
-	}
-	caCertPool.AppendCertsFromPEM(caCert)
+func getMachinesEndpoints(log logr.Logger, machines collections.Machines) []string {
+	endpoints := make([]string, 0, len(machines))
+	for _, m := range machines {
+		log.Info("Checking if machine has address set for healthcheck", "machine", m.Name)
+		if len(m.Status.Addresses) == 0 {
+			log.Info("No address set in machine yet", "machine", m.Name)
+			return nil
+		}
 
-	clientCert, err := r.getClientCerts(ctx, cluster)
-	if err != nil {
-		return errors.Wrap(err, "Error getting client cert for healthcheck")
-	}
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:      caCertPool,
-				Certificates: []tls.Certificate{clientCert},
-			},
-		},
+		currentEndpoint := getMemberClientURL(getEtcdMachineAddress(m))
+		endpoints = append(endpoints, currentEndpoint)
 	}
 
-	for _, endpoint := range strings.Split(endpoints, ",") {
-		req, err := http.NewRequest("GET", endpoint+"/health", nil)
+	return endpoints
+}
+
+func (r *EtcdadmClusterReconciler) performMachinesHealthCheck(ctx context.Context, log logr.Logger, endpoints []string, cluster *clusterv1.Cluster) (healthy bool, err error) {
+	for _, endpoint := range endpoints {
+		err := r.performEndpointHealthCheck(ctx, cluster, endpoint, true)
+		if errors.Is(err, portNotOpenErr) {
+			log.Info("Machine is not listening yet, this is probably transient, while etcd starts", "endpoint", endpoint)
+			return false, nil
+		}
+
 		if err != nil {
-			return err
+			return false, err
 		}
-		req.Close = true
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return errors.Wrap(err, "error checking etcd member health")
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return errors.Wrap(err, "error member not ready, retry")
-		}
-		r.Log.Info(fmt.Sprintf("Etcd member %v ready", endpoint+"/health"))
 	}
-	return nil
+
+	return true, nil
 }

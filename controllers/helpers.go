@@ -3,21 +3,64 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"sigs.k8s.io/cluster-api/util/collections"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"net"
+	"net/url"
+	"strings"
 
-	etcdbpv1alpha4 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha4"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1alpha4"
+	etcdbootstrapv1 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1beta1"
+	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apiserver/pkg/storage/names"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/controllers/external"
+	"sigs.k8s.io/cluster-api/util"
+	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
+
+const (
+	httpsPrefix       = "https://"
+	etcdClientURLPort = "2379"
+)
+
+// EtcdMachinesSelectorForCluster returns the label selector necessary to get etcd machines for a given cluster.
+func EtcdMachinesSelectorForCluster(clusterName, etcdClusterName string) labels.Selector {
+	must := func(r *labels.Requirement, err error) labels.Requirement {
+		if err != nil {
+			panic(err)
+		}
+		return *r
+	}
+	return labels.NewSelector().Add(
+		must(labels.NewRequirement(clusterv1.ClusterLabelName, selection.Equals, []string{clusterName})),
+		must(labels.NewRequirement(clusterv1.MachineEtcdClusterLabelName, selection.Equals, []string{etcdClusterName})),
+	)
+}
+
+// EtcdClusterMachines returns a filter to find all etcd machines for a cluster, regardless of ownership.
+func EtcdClusterMachines(clusterName, etcdClusterName string) func(machine *clusterv1.Machine) bool {
+	selector := EtcdMachinesSelectorForCluster(clusterName, etcdClusterName)
+	return func(machine *clusterv1.Machine) bool {
+		if machine == nil {
+			return false
+		}
+		return selector.Matches(labels.Set(machine.Labels))
+	}
+}
+
+// ControlPlaneLabelsForCluster returns a set of labels to add to a control plane machine for this specific cluster.
+func EtcdLabelsForCluster(clusterName string, etcdClusterName string) map[string]string {
+	return map[string]string{
+		clusterv1.ClusterLabelName:            clusterName,
+		clusterv1.MachineEtcdClusterLabelName: etcdClusterName,
+	}
+}
 
 func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, failureDomain *string) (ctrl.Result, error) {
 	// Since the cloned resource should eventually have a controller ref for the Machine, we create an
@@ -36,12 +79,14 @@ func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Co
 		Namespace:   ec.Namespace,
 		OwnerRef:    infraCloneOwner,
 		ClusterName: cluster.Name,
-		Labels:      EtcdLabelsForCluster(cluster.Name),
+		Labels:      EtcdLabelsForCluster(cluster.Name, ec.Name),
 	})
 
-	r.Log.Info(fmt.Sprintf("Is infraRef nil?: %v", infraRef == nil))
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("error cloning infrastructure template for etcd machine: %v", err)
+	}
 	if infraRef == nil {
-		return ctrl.Result{}, fmt.Errorf("infraRef is nil")
+		return ctrl.Result{}, fmt.Errorf("infrastructure template could not be cloned for etcd machine")
 	}
 
 	bootstrapRef, err := r.generateEtcdadmConfig(ctx, ec, cluster)
@@ -63,17 +108,17 @@ func (r *EtcdadmClusterReconciler) generateEtcdadmConfig(ctx context.Context, ec
 		Name:       ec.Name,
 		UID:        ec.UID,
 	}
-	bootstrapConfig := &etcdbpv1alpha4.EtcdadmConfig{
+	bootstrapConfig := &etcdbootstrapv1.EtcdadmConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            names.SimpleNameGenerator.GenerateName(ec.Name + "-"),
 			Namespace:       ec.Namespace,
-			Labels:          EtcdLabelsForCluster(cluster.Name),
+			Labels:          EtcdLabelsForCluster(cluster.Name, ec.Name),
 			OwnerReferences: []metav1.OwnerReference{owner},
 		},
 		Spec: ec.Spec.EtcdadmConfigSpec,
 	}
 	bootstrapRef := &corev1.ObjectReference{
-		APIVersion: etcdbpv1alpha4.GroupVersion.String(),
+		APIVersion: etcdbootstrapv1.GroupVersion.String(),
 		Kind:       "EtcdadmConfig",
 		Name:       bootstrapConfig.GetName(),
 		Namespace:  bootstrapConfig.GetNamespace(),
@@ -92,7 +137,7 @@ func (r *EtcdadmClusterReconciler) generateMachine(ctx context.Context, ec *etcd
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      names.SimpleNameGenerator.GenerateName(ec.Name + "-"),
 			Namespace: ec.Namespace,
-			Labels:    EtcdLabelsForCluster(cluster.Name),
+			Labels:    EtcdLabelsForCluster(cluster.Name, ec.Name),
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(ec, etcdv1.GroupVersion.WithKind("EtcdadmCluster")),
 			},
@@ -110,43 +155,6 @@ func (r *EtcdadmClusterReconciler) generateMachine(ctx context.Context, ec *etcd
 		return errors.Wrap(err, "failed to create machine")
 	}
 	return nil
-}
-
-func (r *EtcdadmClusterReconciler) changeClusterInitAddress(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, ep *EtcdPlane, machineAddress string, machineToDelete *clusterv1.Machine) error {
-	secretNameNs := client.ObjectKey{Name: ec.Status.InitMachineAddress, Namespace: cluster.Namespace}
-	secretInitAddress := &corev1.Secret{}
-	if err := r.Client.Get(ctx, secretNameNs, secretInitAddress); err != nil {
-		return err
-	}
-	currentInitAddress := string(secretInitAddress.Data["address"])
-	if currentInitAddress != machineAddress {
-		// Machine being deleted is not the machine whose address is used by members joining, noop
-		return nil
-	}
-	upToDateMachines := ep.UpToDateMachines()
-	var newInitAddress string
-	if len(upToDateMachines) == 0 {
-		// This can happen during an upgrade if the first node picked for scale down is the init node
-		// Get the address from any of the other machines
-		r.Log.Info("First machine picked during upgrade scale down is init machine, so replacing with one of the existing machines")
-		for _, m := range ep.Machines.Difference(collections.FromMachines(machineToDelete)) {
-			newInitAddress = getEtcdMachineAddress(m)
-			r.Log.Info(fmt.Sprintf("Picking non updated machine: %v", newInitAddress))
-			break
-		}
-	} else {
-		for _, m := range upToDateMachines {
-			newInitAddress = getEtcdMachineAddress(m)
-			r.Log.Info(fmt.Sprintf("Picking fully updated machine: %v", newInitAddress))
-			break
-		}
-	}
-	if newInitAddress == "" {
-		return fmt.Errorf("Could not find a machine to use to join etcd cluster as a member")
-	}
-
-	secretInitAddress.Data["address"] = []byte(newInitAddress)
-	return r.Client.Update(ctx, secretInitAddress)
 }
 
 func getEtcdMachineAddress(machine *clusterv1.Machine) string {
@@ -170,6 +178,27 @@ func getEtcdMachineAddress(machine *clusterv1.Machine) string {
 	return machineAddress
 }
 
+func getMemberClientURL(address string) string {
+	return fmt.Sprintf("%s%s:%s", httpsPrefix, address, etcdClientURLPort)
+}
+
+func getEtcdMachineAddressFromClientURL(clientURL string) string {
+	u, err := url.ParseRequestURI(clientURL)
+	if err != nil {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		return ""
+	}
+	return host
+}
+
+func getMemberHealthCheckEndpoint(clientURL string) string {
+	return fmt.Sprintf("%s/health", clientURL)
+}
+
+// source: https://github.com/kubernetes-sigs/etcdadm/blob/master/etcd/etcd.go#L53:6
 func memberForPeerURLs(members *clientv3.MemberListResponse, peerURLs []string) (*etcdserverpb.Member, bool) {
 	for _, m := range members.Members {
 		if stringSlicesEqual(m.PeerURLs, peerURLs) {
@@ -190,4 +219,32 @@ func stringSlicesEqual(l, r []string) bool {
 		}
 	}
 	return true
+}
+
+// Logic & implementation similar to KCP controller reconciling external MachineTemplate InfrastrucutureReference https://github.com/kubernetes-sigs/cluster-api/blob/master/controlplane/kubeadm/controllers/helpers.go#L123:41
+func (r *EtcdadmClusterReconciler) reconcileExternalReference(ctx context.Context, cluster *clusterv1.Cluster, ref corev1.ObjectReference) error {
+	if !strings.HasSuffix(ref.Kind, clusterv1.TemplateSuffix) {
+		return nil
+	}
+
+	obj, err := external.Get(ctx, r.Client, &ref, cluster.Namespace)
+	if err != nil {
+		return err
+	}
+
+	// Note: We intentionally do not handle checking for the paused label on an external template reference
+
+	patchHelper, err := patch.NewHelper(obj, r.Client)
+	if err != nil {
+		return err
+	}
+
+	obj.SetOwnerReferences(util.EnsureOwnerRef(obj.GetOwnerReferences(), metav1.OwnerReference{
+		APIVersion: clusterv1.GroupVersion.String(),
+		Kind:       "Cluster",
+		Name:       cluster.Name,
+		UID:        cluster.UID,
+	}))
+
+	return patchHelper.Patch(ctx, obj)
 }

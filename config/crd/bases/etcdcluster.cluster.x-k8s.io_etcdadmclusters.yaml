@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.6.0-beta.0.0.20210504224115-9cd8c2840e84
+    controller-gen.kubebuilder.io/version: v0.7.0
   creationTimestamp: null
   name: etcdadmclusters.etcdcluster.cluster.x-k8s.io
 spec:
@@ -16,10 +16,10 @@ spec:
     singular: etcdadmcluster
   scope: Namespaced
   versions:
-  - name: v1alpha4
+  - name: v1alpha3
     schema:
       openAPIV3Schema:
-        description: EtcdadmCluster is the Schema for the etcdclusters API
+        description: EtcdadmCluster is the Schema for the etcdadmclusters API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -39,6 +39,116 @@ spec:
               etcdadmConfigSpec:
                 description: EtcdadmConfigSpec defines the desired state of EtcdadmConfig
                 properties:
+                  bottlerocketConfig:
+                    description: BottlerocketConfig specifies the configuration for
+                      the bottlerocket bootstrap data
+                    properties:
+                      bootstrapImage:
+                        description: BootstrapImage specifies the container image
+                          to use for bottlerocket's bootstrapping
+                        type: string
+                      etcdImage:
+                        description: EtcdImage specifies the etcd image to use by
+                          etcdadm
+                        type: string
+                      pauseImage:
+                        description: PauseImage specifies the image to use for the
+                          pause container
+                        type: string
+                    required:
+                    - bootstrapImage
+                    - pauseImage
+                    type: object
+                  cipherSuites:
+                    description: CipherSuites is a list of comma-delimited supported
+                      TLS cipher suites, mapping to the --cipher-suites flag. Default
+                      is empty, which means that they will be auto-populated by Go.
+                    type: string
+                  cloudInitConfig:
+                    description: CloudInitConfig specifies the configuration for the
+                      cloud-init bootstrap data
+                    properties:
+                      etcdReleaseURL:
+                        description: EtcdReleaseURL is an optional field to specify
+                          where etcdadm can download etcd from
+                        type: string
+                      installDir:
+                        description: InstallDir is an optional field to specify where
+                          etcdadm will extract etcd binaries to
+                        type: string
+                      version:
+                        type: string
+                    type: object
+                  etcdadmBuiltin:
+                    type: boolean
+                  etcdadmInstallCommands:
+                    items:
+                      type: string
+                    type: array
+                  files:
+                    description: Files specifies extra files to be passed to user_data
+                      upon creation.
+                    items:
+                      description: File defines the input for generating write_files
+                        in cloud-init.
+                      properties:
+                        content:
+                          description: Content is the actual content of the file.
+                          type: string
+                        contentFrom:
+                          description: ContentFrom is a referenced source of content
+                            to populate the file.
+                          properties:
+                            secret:
+                              description: Secret represents a secret that should
+                                populate this file.
+                              properties:
+                                key:
+                                  description: Key is the key in the secret's data
+                                    map for this value.
+                                  type: string
+                                name:
+                                  description: Name of the secret in the KubeadmBootstrapConfig's
+                                    namespace to use.
+                                  type: string
+                              required:
+                              - key
+                              - name
+                              type: object
+                          required:
+                          - secret
+                          type: object
+                        encoding:
+                          description: Encoding specifies the encoding of the file
+                            contents.
+                          enum:
+                          - base64
+                          - gzip
+                          - gzip+base64
+                          type: string
+                        owner:
+                          description: Owner specifies the ownership of the file,
+                            e.g. "root:root".
+                          type: string
+                        path:
+                          description: Path specifies the full path on disk where
+                            to store the file.
+                          type: string
+                        permissions:
+                          description: Permissions specifies the permissions to assign
+                            to the file, e.g. "0640".
+                          type: string
+                      required:
+                      - path
+                      type: object
+                    type: array
+                  format:
+                    description: Format specifies the output format of the bootstrap
+                      data
+                    enum:
+                    - cloud-config
+                    - bottlerocket
+                    type: string
                   postEtcdadmCommands:
                     description: PostEtcdadmCommands specifies extra commands to run
                       after kubeadm runs
@@ -51,6 +161,34 @@ spec:
                     items:
                       type: string
                     type: array
+                  proxy:
+                    description: Proxy holds the https and no proxy information This
+                      is only used for bottlerocket
+                    properties:
+                      httpProxy:
+                        description: HTTP Proxy
+                        type: string
+                      httpsProxy:
+                        description: HTTPS proxy
+                        type: string
+                      noProxy:
+                        description: No proxy, list of ips that should not use proxy
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  registryMirror:
+                    description: RegistryMirror holds the image registry mirror information
+                      This is only used for bottlerocket
+                    properties:
+                      caCert:
+                        description: CACert defines the CA cert for the registry mirror
+                        type: string
+                      endpoint:
+                        description: Endpoint defines the registry mirror endpoint
+                          to use for pulling images
+                        type: string
+                    type: object
                   users:
                     description: Users specifies extra users to add
                     items:
@@ -103,8 +241,6 @@ spec:
                       - name
                       type: object
                     type: array
-                  version:
-                    type: string
                 type: object
               infrastructureTemplate:
                 description: InfrastructureTemplate is a required reference to a custom
@@ -146,21 +282,434 @@ spec:
               replicas:
                 format: int32
                 type: integer
-              version:
-                type: string
             required:
             - infrastructureTemplate
             type: object
           status:
             description: EtcdadmClusterStatus defines the observed state of EtcdadmCluster
             properties:
+              conditions:
+                description: Conditions defines current service state of the EtcdadmCluster.
+                items:
+                  description: Condition defines an observation of a Cluster API resource
+                    operational state.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another. This should be when the underlying condition changed.
+                        If that is not known, then using the time when the API field
+                        changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human readable message indicating details about
+                        the transition. This field may be empty.
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition
+                        in CamelCase. The specific API may choose whether or not this
+                        field is considered a guaranteed API. This field may not be
+                        empty.
+                      type: string
+                    severity:
+                      description: Severity provides an explicit classification of
+                        Reason code, so the users or machines can immediately understand
+                        the current situation and act accordingly. The Severity field
+                        MUST be set only when Status=False.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: Type of condition in CamelCase or in foo.example.com/CamelCase.
+                        Many .condition.type values are consistent across resources
+                        like Available, but because arbitrary conditions can be useful
+                        (see .node.status.conditions), the ability to deconflict is
+                        important.
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
               creationComplete:
+                description: CreationComplete gets set to true once the etcd cluster
+                  is created. Its value never changes after that. It is used as a
+                  way to indicate that the periodic healthcheck loop can be run for
+                  the particular etcd cluster.
                 type: boolean
-              endpoint:
+              endpoints:
                 type: string
               initMachineAddress:
                 type: string
               initialized:
+                type: boolean
+              observedGeneration:
+                description: ObservedGeneration is the latest generation observed
+                  by the controller.
+                format: int64
+                type: integer
+              ready:
+                description: Ready reflects the state of the etcd cluster, whether
+                  all of its members have passed healthcheck and are ready to serve
+                  requests or not.
+                type: boolean
+              replicas:
+                description: Total number of non-terminated machines targeted by this
+                  etcd cluster (their labels match the selector).
+                format: int32
+                type: integer
+              selector:
+                description: 'Selector is the label selector in string format to avoid
+                  introspection by clients, and is used to provide the CRD-based integration
+                  for the scale subresource and additional integrations for things
+                  like kubectl describe.. The string will be in the same format as
+                  the query-param syntax. More info about label selectors: http://kubernetes.io/docs/user-guide/labels#label-selectors'
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: false
+    subresources:
+      status: {}
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: EtcdadmCluster is the Schema for the etcdadmclusters API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: EtcdadmClusterSpec defines the desired state of EtcdadmCluster
+            properties:
+              etcdadmConfigSpec:
+                description: EtcdadmConfigSpec defines the desired state of EtcdadmConfig
+                properties:
+                  bottlerocketConfig:
+                    description: BottlerocketConfig specifies the configuration for
+                      the bottlerocket bootstrap data
+                    properties:
+                      bootstrapImage:
+                        description: BootstrapImage specifies the container image
+                          to use for bottlerocket's bootstrapping
+                        type: string
+                      etcdImage:
+                        description: EtcdImage specifies the etcd image to use by
+                          etcdadm
+                        type: string
+                      pauseImage:
+                        description: PauseImage specifies the image to use for the
+                          pause container
+                        type: string
+                    required:
+                    - bootstrapImage
+                    - pauseImage
+                    type: object
+                  cipherSuites:
+                    description: CipherSuites is a list of comma-delimited supported
+                      TLS cipher suites, mapping to the --cipher-suites flag. Default
+                      is empty, which means that they will be auto-populated by Go.
+                    type: string
+                  cloudInitConfig:
+                    description: CloudInitConfig specifies the configuration for the
+                      cloud-init bootstrap data
+                    properties:
+                      etcdReleaseURL:
+                        description: EtcdReleaseURL is an optional field to specify
+                          where etcdadm can download etcd from
+                        type: string
+                      installDir:
+                        description: InstallDir is an optional field to specify where
+                          etcdadm will extract etcd binaries to
+                        type: string
+                      version:
+                        type: string
+                    type: object
+                  etcdadmBuiltin:
+                    type: boolean
+                  etcdadmInstallCommands:
+                    items:
+                      type: string
+                    type: array
+                  files:
+                    description: Files specifies extra files to be passed to user_data
+                      upon creation.
+                    items:
+                      description: File defines the input for generating write_files
+                        in cloud-init.
+                      properties:
+                        content:
+                          description: Content is the actual content of the file.
+                          type: string
+                        contentFrom:
+                          description: ContentFrom is a referenced source of content
+                            to populate the file.
+                          properties:
+                            secret:
+                              description: Secret represents a secret that should
+                                populate this file.
+                              properties:
+                                key:
+                                  description: Key is the key in the secret's data
+                                    map for this value.
+                                  type: string
+                                name:
+                                  description: Name of the secret in the KubeadmBootstrapConfig's
+                                    namespace to use.
+                                  type: string
+                              required:
+                              - key
+                              - name
+                              type: object
+                          required:
+                          - secret
+                          type: object
+                        encoding:
+                          description: Encoding specifies the encoding of the file
+                            contents.
+                          enum:
+                          - base64
+                          - gzip
+                          - gzip+base64
+                          type: string
+                        owner:
+                          description: Owner specifies the ownership of the file,
+                            e.g. "root:root".
+                          type: string
+                        path:
+                          description: Path specifies the full path on disk where
+                            to store the file.
+                          type: string
+                        permissions:
+                          description: Permissions specifies the permissions to assign
+                            to the file, e.g. "0640".
+                          type: string
+                      required:
+                      - path
+                      type: object
+                    type: array
+                  format:
+                    description: Format specifies the output format of the bootstrap
+                      data
+                    enum:
+                    - cloud-config
+                    - bottlerocket
+                    type: string
+                  postEtcdadmCommands:
+                    description: PostEtcdadmCommands specifies extra commands to run
+                      after kubeadm runs
+                    items:
+                      type: string
+                    type: array
+                  preEtcdadmCommands:
+                    description: PreEtcdadmCommands specifies extra commands to run
+                      before kubeadm runs
+                    items:
+                      type: string
+                    type: array
+                  proxy:
+                    description: Proxy holds the https and no proxy information This
+                      is only used for bottlerocket
+                    properties:
+                      httpProxy:
+                        description: HTTP Proxy
+                        type: string
+                      httpsProxy:
+                        description: HTTPS proxy
+                        type: string
+                      noProxy:
+                        description: No proxy, list of ips that should not use proxy
+                        items:
+                          type: string
+                        type: array
+                    type: object
+                  registryMirror:
+                    description: RegistryMirror holds the image registry mirror information
+                      This is only used for bottlerocket
+                    properties:
+                      caCert:
+                        description: CACert defines the CA cert for the registry mirror
+                        type: string
+                      endpoint:
+                        description: Endpoint defines the registry mirror endpoint
+                          to use for pulling images
+                        type: string
+                    type: object
+                  users:
+                    description: Users specifies extra users to add
+                    items:
+                      description: User defines the input for a generated user in
+                        cloud-init.
+                      properties:
+                        gecos:
+                          description: Gecos specifies the gecos to use for the user
+                          type: string
+                        groups:
+                          description: Groups specifies the additional groups for
+                            the user
+                          type: string
+                        homeDir:
+                          description: HomeDir specifies the home directory to use
+                            for the user
+                          type: string
+                        inactive:
+                          description: Inactive specifies whether to mark the user
+                            as inactive
+                          type: boolean
+                        lockPassword:
+                          description: LockPassword specifies if password login should
+                            be disabled
+                          type: boolean
+                        name:
+                          description: Name specifies the user name
+                          type: string
+                        passwd:
+                          description: Passwd specifies a hashed password for the
+                            user
+                          type: string
+                        primaryGroup:
+                          description: PrimaryGroup specifies the primary group for
+                            the user
+                          type: string
+                        shell:
+                          description: Shell specifies the user's shell
+                          type: string
+                        sshAuthorizedKeys:
+                          description: SSHAuthorizedKeys specifies a list of ssh authorized
+                            keys for the user
+                          items:
+                            type: string
+                          type: array
+                        sudo:
+                          description: Sudo specifies a sudo role for the user
+                          type: string
+                      required:
+                      - name
+                      type: object
+                    type: array
+                type: object
+              infrastructureTemplate:
+                description: InfrastructureTemplate is a required reference to a custom
+                  resource offered by an infrastructure provider.
+                properties:
+                  apiVersion:
+                    description: API version of the referent.
+                    type: string
+                  fieldPath:
+                    description: 'If referring to a piece of an object instead of
+                      an entire object, this string should contain a valid JSON/Go
+                      field access statement, such as desiredState.manifest.containers[2].
+                      For example, if the object reference is to a container within
+                      a pod, this would take on a value like: "spec.containers{name}"
+                      (where "name" refers to the name of the container that triggered
+                      the event) or if no container name is specified "spec.containers[2]"
+                      (container with index 2 in this pod). This syntax is chosen
+                      only to have some well-defined way of referencing a part of
+                      an object. TODO: this design is not final and this field is
+                      subject to change in the future.'
+                    type: string
+                  kind:
+                    description: 'Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                    type: string
+                  name:
+                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                    type: string
+                  namespace:
+                    description: 'Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/'
+                    type: string
+                  resourceVersion:
+                    description: 'Specific resourceVersion to which this reference
+                      is made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency'
+                    type: string
+                  uid:
+                    description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
+                    type: string
+                type: object
+              replicas:
+                format: int32
+                type: integer
+            required:
+            - infrastructureTemplate
+            type: object
+          status:
+            description: EtcdadmClusterStatus defines the observed state of EtcdadmCluster
+            properties:
+              conditions:
+                description: Conditions defines current service state of the EtcdadmCluster.
+                items:
+                  description: Condition defines an observation of a Cluster API resource
+                    operational state.
+                  properties:
+                    lastTransitionTime:
+                      description: Last time the condition transitioned from one status
+                        to another. This should be when the underlying condition changed.
+                        If that is not known, then using the time when the API field
+                        changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A human readable message indicating details about
+                        the transition. This field may be empty.
+                      type: string
+                    reason:
+                      description: The reason for the condition's last transition
+                        in CamelCase. The specific API may choose whether or not this
+                        field is considered a guaranteed API. This field may not be
+                        empty.
+                      type: string
+                    severity:
+                      description: Severity provides an explicit classification of
+                        Reason code, so the users or machines can immediately understand
+                        the current situation and act accordingly. The Severity field
+                        MUST be set only when Status=False.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: Type of condition in CamelCase or in foo.example.com/CamelCase.
+                        Many .condition.type values are consistent across resources
+                        like Available, but because arbitrary conditions can be useful
+                        (see .node.status.conditions), the ability to deconflict is
+                        important.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              creationComplete:
+                description: CreationComplete gets set to true once the etcd cluster
+                  is created. Its value never changes after that. It is used as a
+                  way to indicate that the periodic healthcheck loop can be run for
+                  the particular etcd cluster.
+                type: boolean
+              endpoints:
+                type: string
+              initMachineAddress:
+                type: string
+              initialized:
+                type: boolean
+              observedGeneration:
+                description: ObservedGeneration is the latest generation observed
+                  by the controller.
+                format: int64
+                type: integer
+              ready:
+                description: Ready reflects the state of the etcd cluster, whether
+                  all of its members have passed healthcheck and are ready to serve
+                  requests or not.
                 type: boolean
               replicas:
                 description: Total number of non-terminated machines targeted by this
