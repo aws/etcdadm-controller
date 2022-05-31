@@ -13,6 +13,7 @@ require (
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/valyala/fasthttp v1.34.0 // indirect
 	golang.org/x/tools v0.1.5
+	gopkg.in/yaml.v3 v3.0.0 // indirect
 	k8s.io/code-generator v0.22.2
 	sigs.k8s.io/controller-tools v0.7.0
 	sigs.k8s.io/kubebuilder/docs/book/utils v0.0.0-20210702145813-742983631190
