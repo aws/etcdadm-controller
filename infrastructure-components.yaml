@@ -457,7 +457,7 @@ spec:
         - --enable-leader-election
         command:
         - /manager
-        image: mrajashree/etcdadm-controller:latest
+        image: aws/etcdadm-controller:latest
         name: manager
         resources:
           limits:

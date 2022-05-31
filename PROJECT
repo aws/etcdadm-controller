@@ -1,5 +1,5 @@
 domain: cluster.x-k8s.io
-repo: github.com/mrajashree/etcdadm-controller
+repo: github.com/aws/etcdadm-controller
 resources:
 - group: etcdcluster
   kind: EtcdCluster
