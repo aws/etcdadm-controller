@@ -23,7 +23,7 @@ package v1alpha3
 import (
 	unsafe "unsafe"
 
-	apiv1alpha3 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1alpha3"
+	apiv1alpha3 "github.com/aws/etcdadm-bootstrap-provider/api/v1alpha3"
 	v1beta1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
