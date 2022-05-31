@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	etcdbootstrapv1 "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
+	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	clientv3 "go.etcd.io/etcd/client/v3"

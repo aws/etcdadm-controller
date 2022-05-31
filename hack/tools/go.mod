@@ -1,4 +1,4 @@
-module github.com/mrajashree/etcdadm-controller/hack/tools
+module github.com/aws/etcdadm-controller/hack/tools
 
 go 1.16
 

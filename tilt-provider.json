@@ -1,7 +1,7 @@
 {
   "name": "etcdadm-controller",
   "config": {
-    "image": "mrajashree/etcdadm-controller:latest",
+    "image": "aws/etcdadm-controller:latest",
     "live_reload_deps": [
       "main.go",
       "go.mod",

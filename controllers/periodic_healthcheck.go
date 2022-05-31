@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
+	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	"github.com/hashicorp/go-multierror"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"k8s.io/apimachinery/pkg/types"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"

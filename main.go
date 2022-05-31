@@ -31,9 +31,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	etcdclusterv1alpha3 "github.com/mrajashree/etcdadm-controller/api/v1alpha3"
-	etcdclusterv1beta1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
-	"github.com/mrajashree/etcdadm-controller/controllers"
+	etcdclusterv1alpha3 "github.com/aws/etcdadm-controller/api/v1alpha3"
+	etcdclusterv1beta1 "github.com/aws/etcdadm-controller/api/v1beta1"
+	"github.com/aws/etcdadm-controller/controllers"
 	// +kubebuilder:scaffold:imports
 )
 

@@ -1,4 +1,4 @@
-module github.com/mrajashree/etcdadm-controller
+module github.com/aws/etcdadm-controller
 
 go 1.17
 

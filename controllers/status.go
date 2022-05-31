@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
+	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	"github.com/go-logr/logr"
-	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"

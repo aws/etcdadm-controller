@@ -24,7 +24,7 @@ import (
 	unsafe "unsafe"
 
 	apiv1alpha3 "github.com/aws/etcdadm-bootstrap-provider/api/v1alpha3"
-	v1beta1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
+	v1beta1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	clusterapiapiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"

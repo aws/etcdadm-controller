@@ -1,7 +1,7 @@
 package v1alpha3
 
 import (
-	etcdv1beta1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
+	etcdv1beta1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/conversion"
 )
 
