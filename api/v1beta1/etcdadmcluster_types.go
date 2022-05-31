@@ -17,7 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
-	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1beta1"
+	etcdbp "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"

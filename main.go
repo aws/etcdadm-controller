@@ -23,7 +23,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	etcdbp "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1beta1"
+	etcdbp "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"

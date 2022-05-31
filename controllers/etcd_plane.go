@@ -4,7 +4,7 @@ import (
 	"context"
 	"reflect"
 
-	etcdbootstrapv1 "github.com/mrajashree/etcdadm-bootstrap-provider/api/v1beta1"
+	etcdbootstrapv1 "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
 	etcdv1 "github.com/mrajashree/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -22,8 +22,8 @@ type EtcdPlane struct {
 	Cluster              *clusterv1.Cluster
 	Machines             collections.Machines
 	machinesPatchHelpers map[string]*patch.Helper
-	etcdadmConfigs map[string]*etcdbootstrapv1.EtcdadmConfig
-	infraResources map[string]*unstructured.Unstructured
+	etcdadmConfigs       map[string]*etcdbootstrapv1.EtcdadmConfig
+	infraResources       map[string]*unstructured.Unstructured
 }
 
 func NewEtcdPlane(ctx context.Context, client client.Client, cluster *clusterv1.Cluster, ec *etcdv1.EtcdadmCluster, ownedMachines collections.Machines) (*EtcdPlane, error) {
