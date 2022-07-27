@@ -6,7 +6,10 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+
 	"sigs.k8s.io/cluster-api/util/conditions"
+
+	"path/filepath"
 
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
@@ -14,7 +17,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	certutil "k8s.io/client-go/util/cert"
-	"path/filepath"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/certs"
@@ -38,7 +40,15 @@ func (r *EtcdadmClusterReconciler) generateCAandClientCertSecrets(ctx context.Co
 		util.ObjectKey(cluster),
 		*metav1.NewControllerRef(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdadmCluster")),
 	)
+	if err != nil {
+		log.Error(err, "Failed to look up or generate CA cert key pair")
+		return err
+	}
+
 	caCertKey := CACertKeyPair.GetByPurpose(secret.ManagedExternalEtcdCA)
+	if caCertKey == nil {
+		return fmt.Errorf("nil returned from getting etcd CA certificate by purpose %s", secret.ManagedExternalEtcdCA)
+	}
 
 	// Use the generated CA cert+key pair to generate and sign etcd client cert+key pair
 	caCertDecoded, _ := pem.Decode(caCertKey.KeyPair.Cert)
@@ -129,8 +139,10 @@ func (r *EtcdadmClusterReconciler) getCACert(ctx context.Context, cluster *clust
 	if err := caCert.Lookup(ctx, r.Client, util.ObjectKey(cluster)); err != nil {
 		return []byte{}, errors.Wrap(err, "error looking up external etcd CA certs")
 	}
-	caCertKey := caCert.GetByPurpose(secret.ManagedExternalEtcdCA)
-	return caCertKey.KeyPair.Cert, nil
+	if caCertKey := caCert.GetByPurpose(secret.ManagedExternalEtcdCA); caCertKey != nil {
+		return caCertKey.KeyPair.Cert, nil
+	}
+	return []byte{}, fmt.Errorf("nil returned from getting etcd CA certificate by purpose %s", secret.ManagedExternalEtcdCA)
 }
 
 func (r *EtcdadmClusterReconciler) getClientCerts(ctx context.Context, cluster *clusterv1.Cluster) (tls.Certificate, error) {
@@ -142,6 +154,8 @@ func (r *EtcdadmClusterReconciler) getClientCerts(ctx context.Context, cluster *
 	if err := clientCert.Lookup(ctx, r.Client, util.ObjectKey(cluster)); err != nil {
 		return tls.Certificate{}, err
 	}
-	clientCertKey := clientCert.GetByPurpose(secret.APIServerEtcdClient)
-	return tls.X509KeyPair(clientCertKey.KeyPair.Cert, clientCertKey.KeyPair.Key)
+	if clientCertKey := clientCert.GetByPurpose(secret.APIServerEtcdClient); clientCertKey != nil {
+		return tls.X509KeyPair(clientCertKey.KeyPair.Cert, clientCertKey.KeyPair.Key)
+	}
+	return tls.Certificate{}, fmt.Errorf("nil returned from getting etcd CA certificate by purpose %s", secret.APIServerEtcdClient)
 }
