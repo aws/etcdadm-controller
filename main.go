@@ -107,7 +107,9 @@ func main() {
 var onlyOneSignalHandler = make(chan struct{})
 var shutdownSignals = []os.Signal{os.Interrupt, syscall.SIGTERM}
 
-/* Controller runtime 0.5.4 returns a stop channel and 0.7.0 onwards returns a context that can be passed down to SetupWithManager and reconcilers
+/*
+	Controller runtime 0.5.4 returns a stop channel and 0.7.0 onwards returns a context that can be passed down to SetupWithManager and reconcilers
+
 Because cluster-api v0.3.x uses controller-runtime 0.5.4 version, etcdadm-controller cannot switch to a higher controller-runtime due to version mismatch errors
 So this function setupSignalHandler is a modified version of controller-runtime's SetupSignalHandler that returns both, a stop channel and a context that
 is cancelled when this controller exits
