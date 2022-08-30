@@ -252,7 +252,7 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 			if nextMachineUpdateTime.After(time.Now()) {
 				// the latest machine with updated spec should get more time for etcd data sync
 				// requeue this after
-				after := nextMachineUpdateTime.Sub(time.Now())
+				after := time.Until(nextMachineUpdateTime)
 				log.Info(fmt.Sprintf("Requeueing etcdadm cluster for updating next machine after %s", after.String()))
 				return ctrl.Result{RequeueAfter: after}, nil
 			}
@@ -276,7 +276,8 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 		if conditions.Has(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition) {
 			conditions.MarkTrue(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition)
 
-			if _, hasUpgradeAnnotation := etcdCluster.Annotations[etcdv1.UpgradeInProgressAnnotation]; hasUpgradeAnnotation {
+			_, hasUpgradeAnnotation := etcdCluster.Annotations[etcdv1.UpgradeInProgressAnnotation]
+			if hasUpgradeAnnotation {
 				delete(etcdCluster.Annotations, etcdv1.UpgradeInProgressAnnotation)
 			}
 		}

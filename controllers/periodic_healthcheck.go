@@ -135,7 +135,8 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 			}
 		} else {
 			// member passed healthcheck. so if it was previously added to unhealthy map, remove it since only consecutive failures should lead to member removal
-			if _, markedUnhealthy := currClusterHFConfig.unhealthyMembersFrequency[endpoint]; markedUnhealthy {
+			_, markedUnhealthy := currClusterHFConfig.unhealthyMembersFrequency[endpoint]
+			if markedUnhealthy {
 				delete(currClusterHFConfig.unhealthyMembersFrequency, endpoint)
 			}
 		}

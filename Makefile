@@ -81,6 +81,8 @@ generate-conversion: $(CONVERSION_GEN)
 		--output-file-base=zz_generated.conversion $(CONVERSION_GEN_OUTPUT_BASE) \
 		--go-header-file=hack/boilerplate.go.txt
 
+build: docker-build
+
 # Build the docker image
 docker-build: test
 	docker build . -t ${IMG}
@@ -88,6 +90,19 @@ docker-build: test
 # Push the docker image
 docker-push:
 	docker push ${IMG}
+
+.PHONY: lint
+lint: bin/golangci-lint ## Run golangci-lint
+	bin/golangci-lint run
+
+bin/golangci-lint: ## Download golangci-lint
+bin/golangci-lint: GOLANGCI_LINT_VERSION?=$(shell cat .github/workflows/golangci-lint.yml | yq e '.jobs.golangci.steps[] | select(.name == "golangci-lint") .with.version' -)
+bin/golangci-lint:
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s $(GOLANGCI_LINT_VERSION)
+
+.PHONY: clean
+clean:
+	rm -Rf ./bin
 
 $(CONTROLLER_GEN): $(TOOLS_BIN_DIR) # Build controller-gen from tools folder.
 	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.7.0)
