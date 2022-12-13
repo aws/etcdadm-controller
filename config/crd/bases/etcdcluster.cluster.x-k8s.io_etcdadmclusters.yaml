@@ -399,10 +399,86 @@ spec:
                     description: BottlerocketConfig specifies the configuration for
                       the bottlerocket bootstrap data
                     properties:
+                      adminImage:
+                        description: AdminImage specifies the admin container image
+                          to use for bottlerocket.
+                        type: string
                       bootstrapImage:
                         description: BootstrapImage specifies the container image
                           to use for bottlerocket's bootstrapping
                         type: string
+                      controlImage:
+                        description: ControlImage specifies the control container
+                          image to use for bottlerocket.
+                        type: string
+                      customBootstrapContainers:
+                        description: CustomBootstrapContainers adds additional bootstrap
+                          containers for bottlerocket.
+                        items:
+                          description: BottlerocketBootstrapContainer holds the bootstrap
+                            container setting for bottlerocket.
+                          properties:
+                            essential:
+                              description: Essential decides whether or not the container
+                                should fail the boot process. Bootstrap containers
+                                configured with essential = true will stop the boot
+                                process if they exit code is a non-zero value. Default
+                                is false.
+                              type: boolean
+                            image:
+                              description: Image is the actual image used for Bottlerocket
+                                bootstrap.
+                              type: string
+                            mode:
+                              description: Mode represents the bootstrap container
+                                mode.
+                              enum:
+                              - always
+                              - "off"
+                              - once
+                              type: string
+                            name:
+                              description: Name is the bootstrap container name that
+                                will be given to the container in BR's `apiserver`.
+                              type: string
+                            userData:
+                              description: UserData is the base64-encoded userdata.
+                              type: string
+                          required:
+                          - image
+                          - mode
+                          - name
+                          type: object
+                        type: array
+                      customHostContainers:
+                        description: CustomHostContainers adds additional host containers
+                          for bottlerocket.
+                        items:
+                          description: BottlerocketHostContainer holds the host container
+                            setting for bottlerocket.
+                          properties:
+                            image:
+                              description: Image is the actual location of the host
+                                container image.
+                              type: string
+                            name:
+                              description: Name is the host container name that will
+                                be given to the container in BR's `apiserver`
+                              type: string
+                            superpowered:
+                              description: Superpowered indicates if the container
+                                will be superpowered
+                              type: boolean
+                            userData:
+                              description: UserData is the userdata that will be attached
+                                to the image.
+                              type: string
+                          required:
+                          - image
+                          - name
+                          - superpowered
+                          type: object
+                        type: array
                       etcdImage:
                         description: EtcdImage specifies the etcd image to use by
                           etcdadm
@@ -412,7 +488,9 @@ spec:
                           pause container
                         type: string
                     required:
+                    - adminImage
                     - bootstrapImage
+                    - controlImage
                     - pauseImage
                     type: object
                   cipherSuites:
