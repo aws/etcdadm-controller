@@ -3,7 +3,7 @@ module github.com/aws/etcdadm-controller
 go 1.17
 
 require (
-	github.com/aws/etcdadm-bootstrap-provider v1.0.2
+	github.com/aws/etcdadm-bootstrap-provider v1.0.5-rc1
 	github.com/go-logr/logr v1.2.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/ginkgo v1.16.5
