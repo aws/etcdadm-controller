@@ -488,9 +488,7 @@ spec:
                           pause container
                         type: string
                     required:
-                    - adminImage
                     - bootstrapImage
-                    - controlImage
                     - pauseImage
                     type: object
                   cipherSuites:
