@@ -61,7 +61,6 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		Owns(&clusterv1.Machine{}).
 		WithEventFilter(predicates.ResourceNotPaused(r.Log)).
 		Build(r)
-
 	if err != nil {
 		return errors.Wrap(err, "failed setting up with a controller manager")
 	}
@@ -147,10 +146,21 @@ func (r *EtcdadmClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	defer func() {
-		// Always attempt to update status.
-		if err := r.updateStatus(ctx, etcdCluster, cluster); err != nil {
-			log.Error(err, "Failed to update EtcdadmCluster Status")
+		etcdMachines, err := r.checkOwnedMachines(ctx, log, etcdCluster, cluster)
+		if err != nil {
 			reterr = kerrors.NewAggregate([]error{reterr, err})
+			return
+		} else {
+			if err := r.updateMachinesEtcdReadyLabel(ctx, log, etcdMachines); err != nil {
+				log.Error(err, "Failed to update etcd ready labels in machines")
+				reterr = kerrors.NewAggregate([]error{reterr, err})
+			}
+
+			// Always attempt to update status.
+			if err := r.updateStatus(ctx, etcdCluster, cluster, etcdMachines); err != nil {
+				log.Error(err, "Failed to update EtcdadmCluster Status")
+				reterr = kerrors.NewAggregate([]error{reterr, err})
+			}
 		}
 
 		if conditions.IsFalse(etcdCluster, etcdv1.EtcdMachinesSpecUpToDateCondition) &&
