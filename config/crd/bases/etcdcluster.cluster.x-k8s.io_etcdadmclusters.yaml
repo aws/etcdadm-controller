@@ -620,6 +620,14 @@ spec:
                         description: Endpoint defines the registry mirror endpoint
                           to use for pulling images
                         type: string
+                      password:
+                        description: Password defines the password for the registry
+                          mirror
+                        type: string
+                      username:
+                        description: Username defines the username for the registry
+                          mirror
+                        type: string
                     type: object
                   users:
                     description: Users specifies extra users to add
