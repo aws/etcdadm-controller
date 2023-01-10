@@ -86,6 +86,7 @@ func (r *EtcdadmClusterReconciler) checkOwnedMachines(ctx context.Context, log l
 		if errors.Is(err, portNotOpenErr) {
 			log.Info("Machine is not listening yet, this is probably transient, while etcd starts", "endpoint", endpoint)
 		} else {
+			m.endpoint = endpoint
 			m.listening = true
 		}
 
