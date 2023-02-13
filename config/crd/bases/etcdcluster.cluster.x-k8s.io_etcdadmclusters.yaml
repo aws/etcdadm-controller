@@ -581,6 +581,18 @@ spec:
                     - cloud-config
                     - bottlerocket
                     type: string
+                  ntp:
+                    description: NTP specifies NTP configuration
+                    properties:
+                      enabled:
+                        description: Enabled specifies whether NTP should be enabled
+                        type: boolean
+                      servers:
+                        description: Servers specifies which NTP servers to use
+                        items:
+                          type: string
+                        type: array
+                    type: object
                   postEtcdadmCommands:
                     description: PostEtcdadmCommands specifies extra commands to run
                       after kubeadm runs
