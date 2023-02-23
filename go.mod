@@ -64,8 +64,8 @@ require (
 	go.uber.org/zap v1.19.1 // indirect
 	golang.org/x/net v0.0.0-20210825183410-e898025ed96a // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
-	golang.org/x/sys v0.0.0-20211029165221-6e7872819dc8 // indirect
-	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b // indirect
+	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
@@ -89,6 +89,9 @@ require (
 
 replace (
 	github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
+	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.11.1
 	github.com/valyala/fasthttp => github.com/valyala/fasthttp v1.34.0
+	golang.org/x/crypto/ssh => golang.org/x/crypto/ssh v0.0.0-20220314234659-1baeb1ce4c0b
+	golang.org/x/net/http => golang.org/x/net/http v0.0.0-20220906165146-f3363e06e74c
 	sigs.k8s.io/cluster-api => github.com/mrajashree/cluster-api v1.1.3-custom
 )
