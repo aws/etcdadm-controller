@@ -18,3 +18,9 @@ require (
 	sigs.k8s.io/controller-tools v0.7.0
 	sigs.k8s.io/kubebuilder/docs/book/utils v0.0.0-20210702145813-742983631190
 )
+
+replace (
+	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.11.1
+	golang.org/x/crypto/ssh => golang.org/x/crypto/ssh v0.0.0-20220314234659-1baeb1ce4c0b
+	golang.org/x/net/http => golang.org/x/net/http v0.0.0-20220906165146-f3363e06e74c
+)
