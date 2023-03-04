@@ -15,8 +15,9 @@ ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 TOOLS_DIR := hack/tools
 BIN_DIR := bin
 TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
-CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/controller-gen)
-CONVERSION_GEN := $(abspath $(TOOLS_BIN_DIR)/conversion-gen)
+ABS_TOOLS_BIN_DIR := $(abspath $(TOOLS_BIN_DIR))
+CONTROLLER_GEN := $(ABS_TOOLS_BIN_DIR)/controller-gen
+CONVERSION_GEN := $(ABS_TOOLS_BIN_DIR)/conversion-gen
 
 export PATH := $(abspath $(TOOLS_BIN_DIR)):$(PATH)
 
@@ -105,23 +106,10 @@ clean:
 	rm -Rf ./bin
 
 $(CONTROLLER_GEN): $(TOOLS_BIN_DIR) # Build controller-gen from tools folder.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.7.0)
+	GOBIN=$(ABS_TOOLS_BIN_DIR) go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.7.0
 
-$(CONVERSION_GEN): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go build -tags=tools -o $(BIN_DIR)/conversion-gen k8s.io/code-generator/cmd/conversion-gen
+$(CONVERSION_GEN): $(TOOLS_BIN_DIR)
+	GOBIN=$(ABS_TOOLS_BIN_DIR) go install k8s.io/code-generator/cmd/conversion-gen@v0.22.2
 
 $(TOOLS_BIN_DIR):
 	mkdir -p $(TOOLS_BIN_DIR)
-
-define go-get-tool
-@[ -f $(1) ] || { \
-set -e ;\
-BIN_PATH=$$(realpath $$(dirname $(1))) ;\
-PKG_BIN_NAME=$$(echo "$(2)" | sed 's,^.*/\(.*\)@v.*$$,\1,') ;\
-BIN_NAME=$$(basename $(1)) ;\
-echo "Install dir $$BIN_PATH" ;\
-echo "Downloading $(2)" ;\
-GOBIN=$$BIN_PATH go install $(2) ;\
-[[ $$PKG_BIN_NAME == $$BIN_NAME ]] || mv -f $$BIN_PATH/$$PKG_BIN_NAME $$BIN_PATH/$$BIN_NAME ;\
-}
-endef
