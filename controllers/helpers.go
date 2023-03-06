@@ -73,7 +73,7 @@ func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Co
 	}
 
 	// Clone the infrastructure template
-	infraRef, err := external.CloneTemplate(ctx, &external.CloneTemplateInput{
+	infraRef, err := external.CreateFromTemplate(ctx, &external.CreateFromTemplateInput{
 		Client:      r.Client,
 		TemplateRef: &ec.Spec.InfrastructureTemplate,
 		Namespace:   ec.Namespace,
