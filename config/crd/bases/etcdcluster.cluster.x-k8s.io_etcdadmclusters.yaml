@@ -43,14 +43,101 @@ spec:
                     description: BottlerocketConfig specifies the configuration for
                       the bottlerocket bootstrap data
                     properties:
+                      adminImage:
+                        description: AdminImage specifies the admin container image
+                          to use for bottlerocket.
+                        type: string
                       bootstrapImage:
                         description: BootstrapImage specifies the container image
                           to use for bottlerocket's bootstrapping
                         type: string
+                      controlImage:
+                        description: ControlImage specifies the control container
+                          image to use for bottlerocket.
+                        type: string
+                      customBootstrapContainers:
+                        description: CustomBootstrapContainers adds additional bootstrap
+                          containers for bottlerocket.
+                        items:
+                          description: BottlerocketBootstrapContainer holds the bootstrap
+                            container setting for bottlerocket.
+                          properties:
+                            essential:
+                              description: Essential decides whether or not the container
+                                should fail the boot process. Bootstrap containers
+                                configured with essential = true will stop the boot
+                                process if they exit code is a non-zero value. Default
+                                is false.
+                              type: boolean
+                            image:
+                              description: Image is the actual image used for Bottlerocket
+                                bootstrap.
+                              type: string
+                            mode:
+                              description: Mode represents the bootstrap container
+                                mode.
+                              enum:
+                              - always
+                              - "off"
+                              - once
+                              type: string
+                            name:
+                              description: Name is the bootstrap container name that
+                                will be given to the container in BR's `apiserver`.
+                              type: string
+                            userData:
+                              description: UserData is the base64-encoded userdata.
+                              type: string
+                          required:
+                          - image
+                          - mode
+                          - name
+                          type: object
+                        type: array
+                      customHostContainers:
+                        description: CustomHostContainers adds additional host containers
+                          for bottlerocket.
+                        items:
+                          description: BottlerocketHostContainer holds the host container
+                            setting for bottlerocket.
+                          properties:
+                            image:
+                              description: Image is the actual location of the host
+                                container image.
+                              type: string
+                            name:
+                              description: Name is the host container name that will
+                                be given to the container in BR's `apiserver`
+                              type: string
+                            superpowered:
+                              description: Superpowered indicates if the container
+                                will be superpowered
+                              type: boolean
+                            userData:
+                              description: UserData is the userdata that will be attached
+                                to the image.
+                              type: string
+                          required:
+                          - image
+                          - name
+                          - superpowered
+                          type: object
+                        type: array
                       etcdImage:
                         description: EtcdImage specifies the etcd image to use by
                           etcdadm
                         type: string
+                      kernel:
+                        description: Kernel specifies additional kernel settings for
+                          bottlerocket
+                        properties:
+                          sysctlSettings:
+                            additionalProperties:
+                              type: string
+                            description: SysctlSettings defines the kernel sysctl
+                              settings to set for bottlerocket nodes.
+                            type: object
+                        type: object
                       pauseImage:
                         description: PauseImage specifies the image to use for the
                           pause container
@@ -92,6 +179,10 @@ spec:
                       description: File defines the input for generating write_files
                         in cloud-init.
                       properties:
+                        append:
+                          description: Append specifies whether to append Content
+                            to existing file if Path exists.
+                          type: boolean
                         content:
                           description: Content is the actual content of the file.
                           type: string
@@ -149,6 +240,18 @@ spec:
                     - cloud-config
                     - bottlerocket
                     type: string
+                  ntp:
+                    description: NTP specifies NTP configuration
+                    properties:
+                      enabled:
+                        description: Enabled specifies whether NTP should be enabled
+                        type: boolean
+                      servers:
+                        description: Servers specifies which NTP servers to use
+                        items:
+                          type: string
+                        type: array
+                    type: object
                   postEtcdadmCommands:
                     description: PostEtcdadmCommands specifies extra commands to run
                       after kubeadm runs
@@ -221,6 +324,29 @@ spec:
                           description: Passwd specifies a hashed password for the
                             user
                           type: string
+                        passwdFrom:
+                          description: PasswdFrom is a referenced source of passwd
+                            to populate the passwd.
+                          properties:
+                            secret:
+                              description: Secret represents a secret that should
+                                populate this password.
+                              properties:
+                                key:
+                                  description: Key is the key in the secret's data
+                                    map for this value.
+                                  type: string
+                                name:
+                                  description: Name of the secret in the KubeadmBootstrapConfig's
+                                    namespace to use.
+                                  type: string
+                              required:
+                              - key
+                              - name
+                              type: object
+                          required:
+                          - secret
+                          type: object
                         primaryGroup:
                           description: PrimaryGroup specifies the primary group for
                             the user
@@ -483,6 +609,17 @@ spec:
                         description: EtcdImage specifies the etcd image to use by
                           etcdadm
                         type: string
+                      kernel:
+                        description: Kernel specifies additional kernel settings for
+                          bottlerocket
+                        properties:
+                          sysctlSettings:
+                            additionalProperties:
+                              type: string
+                            description: SysctlSettings defines the kernel sysctl
+                              settings to set for bottlerocket nodes.
+                            type: object
+                        type: object
                       pauseImage:
                         description: PauseImage specifies the image to use for the
                           pause container
