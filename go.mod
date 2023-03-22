@@ -3,7 +3,7 @@ module github.com/aws/etcdadm-controller
 go 1.19
 
 require (
-	github.com/aws/etcdadm-bootstrap-provider v1.0.7
+	github.com/aws/etcdadm-bootstrap-provider v1.0.7-rc1
 	github.com/go-logr/logr v1.2.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/ginkgo v1.16.5
@@ -27,7 +27,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/coredns/caddy v1.1.0 // indirect
-	github.com/coredns/corefile-migration v1.0.18 // indirect
+	github.com/coredns/corefile-migration v1.0.20 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -94,4 +94,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace sigs.k8s.io/cluster-api => github.com/abhay-krishna/cluster-api v1.3.3-eksa.1
+replace sigs.k8s.io/cluster-api => github.com/abhay-krishna/cluster-api v1.3.5-eksa.2
