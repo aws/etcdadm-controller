@@ -3,7 +3,7 @@ module github.com/aws/etcdadm-controller
 go 1.19
 
 require (
-	github.com/aws/etcdadm-bootstrap-provider v1.0.7-rc1
+	github.com/aws/etcdadm-bootstrap-provider v1.0.7-rc3
 	github.com/go-logr/logr v1.2.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/ginkgo v1.16.5
@@ -94,4 +94,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace sigs.k8s.io/cluster-api => github.com/abhay-krishna/cluster-api v1.3.5-eksa.2
+replace sigs.k8s.io/cluster-api => github.com/abhay-krishna/cluster-api v1.3.5-eksa.3
