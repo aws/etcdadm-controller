@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 
@@ -20,10 +19,11 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	// This is necessary for CRDs including scale subresources.
 	ec.Status.Selector = selector.String()
 
-	log.Info("following machines owned by this etcd cluster:")
+	machineNameList := []string{}
 	for _, machine := range ownedMachines {
-		fmt.Printf("%s ", machine.Name)
+		machineNameList = append(machineNameList, machine.Name)
 	}
+	log.Info("following machines owned by this etcd cluster", "OwnedMachines", machineNameList)
 
 	desiredReplicas := *ec.Spec.Replicas
 	ec.Status.ReadyReplicas = int32(len(ownedMachines))

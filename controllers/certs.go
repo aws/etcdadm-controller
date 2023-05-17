@@ -140,6 +140,9 @@ func (r *EtcdadmClusterReconciler) getCACert(ctx context.Context, cluster *clust
 		return []byte{}, errors.Wrap(err, "error looking up external etcd CA certs")
 	}
 	if caCertKey := caCert.GetByPurpose(secret.ManagedExternalEtcdCA); caCertKey != nil {
+		if caCertKey.KeyPair == nil {
+			return []byte{}, errors.New("ca cert key pair not found for cluster")
+		}
 		return caCertKey.KeyPair.Cert, nil
 	}
 	return []byte{}, fmt.Errorf("nil returned from getting etcd CA certificate by purpose %s", secret.ManagedExternalEtcdCA)
