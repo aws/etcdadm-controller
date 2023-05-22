@@ -37,10 +37,10 @@ spec:
         name: manager
         resources:
           limits:
-            cpu: 100m
-            memory: 100Mi
+            cpu: 200m
+            memory: 256Mi
           requests:
             cpu: 100m
-            memory: 50Mi
+            memory: 64Mi
       terminationGracePeriodSeconds: 10
       serviceAccountName: manager
