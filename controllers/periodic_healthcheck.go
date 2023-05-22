@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -10,6 +9,7 @@ import (
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	"github.com/hashicorp/go-multierror"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
@@ -53,16 +53,23 @@ func (r *EtcdadmClusterReconciler) startHealthCheckLoop(ctx context.Context, don
 				continue
 			}
 			for _, ec := range etcdClusters.Items {
-				if !ec.Status.CreationComplete {
-					// etcdCluster not fully provisioned yet
+				log := r.Log.WithValues("EtcdadmCluster", klog.KObj(&ec))
+				if annotations.HasPaused(&ec) {
+					log.Info("EtcdadmCluster reconciliation is paused, skipping health checks")
 					continue
 				}
-				if annotations.HasPaused(&ec) {
-					r.Log.Info(fmt.Sprintf("Reconciliation is paused for etcdadmCluster %s", ec.Name))
+				if conditions.IsFalse(&ec, etcdv1.EtcdCertificatesAvailableCondition) {
+					log.Info("EtcdadmCluster certificates are not ready, skipping health checks")
+					continue
+				}
+				if !ec.Status.CreationComplete {
+					// etcdCluster not fully provisioned yet
+					log.Info("EtcdadmCluster is not ready, skipping health checks")
 					continue
 				}
 				if conditions.IsFalse(&ec, etcdv1.EtcdMachinesSpecUpToDateCondition) {
 					// etcdCluster is undergoing upgrade, some machines might not be ready yet, skip periodic healthcheck
+					log.Info("EtcdadmCluster machine specs are not up to date, skipping health checks")
 					continue
 				}
 
@@ -70,11 +77,11 @@ func (r *EtcdadmClusterReconciler) startHealthCheckLoop(ctx context.Context, don
 				if clusterEntry, ok := etcdadmClusterMapper[ec.UID]; !ok {
 					cluster, err = util.GetOwnerCluster(ctx, r.Client, ec.ObjectMeta)
 					if err != nil {
-						r.Log.Error(err, "Failed to retrieve owner Cluster from the API Server")
+						log.Error(err, "Failed to retrieve owner Cluster from the API Server")
 						continue
 					}
 					if cluster == nil {
-						r.Log.Info("Cluster Controller has not yet set OwnerRef on etcd cluster")
+						log.Info("Cluster Controller has not yet set OwnerRef on etcd cluster")
 						continue
 					}
 
@@ -100,7 +107,7 @@ func (r *EtcdadmClusterReconciler) startHealthCheckLoop(ctx context.Context, don
 				}
 
 				if err := r.periodicEtcdMembersHealthCheck(ctx, cluster, &ec, etcdadmClusterMapper); err != nil {
-					r.Log.Error(err, "Error performing healthcheck")
+					log.Error(err, "Error performing healthcheck")
 					continue
 				}
 			}
@@ -109,8 +116,9 @@ func (r *EtcdadmClusterReconciler) startHealthCheckLoop(ctx context.Context, don
 }
 
 func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Context, cluster *clusterv1.Cluster, etcdCluster *etcdv1.EtcdadmCluster, etcdadmClusterMapper map[types.UID]etcdadmClusterMemberHealthConfig) error {
+	log := r.Log.WithValues("EtcdadmCluster", klog.KObj(etcdCluster))
 	if len(etcdCluster.Status.Endpoints) == 0 {
-		r.Log.Info("Skipping healthcheck because Endpoints are empty", "Endpoints", etcdCluster.Status.Endpoints)
+		log.Info("Skipping healthcheck because Endpoints are empty", "Endpoints", etcdCluster.Status.Endpoints)
 		return nil
 	}
 	currClusterHFConfig := etcdadmClusterMapper[etcdCluster.UID]
@@ -119,16 +127,16 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 		err := r.performEndpointHealthCheck(ctx, cluster, endpoint, false)
 		if err != nil {
 			// member failed healthcheck so add it to unhealthy map or update it's unhealthy count
-			r.Log.Info("Member failed healthcheck, adding to unhealthy members list", "member", endpoint)
+			log.Info("Member failed healthcheck, adding to unhealthy members list", "member", endpoint)
 			currClusterHFConfig.unhealthyMembersFrequency[endpoint]++
 			// if machine corresponding to the member does not exist, remove that member without waiting for max unhealthy count to be reached
 			m, ok := currClusterHFConfig.endpointToMachineMapper[endpoint]
 			if !ok || m == nil {
-				r.Log.Info("Machine for member does not exist", "member", endpoint)
+				log.Info("Machine for member does not exist", "member", endpoint)
 				currClusterHFConfig.unhealthyMembersToRemove[endpoint] = m
 			}
 			if currClusterHFConfig.unhealthyMembersFrequency[endpoint] >= maxUnhealthyCount {
-				r.Log.Info("Adding to list of unhealthy members to remove", "member", endpoint)
+				log.Info("Adding to list of unhealthy members to remove", "member", endpoint)
 				// member has been unresponsive, add the machine to unhealthyMembersToRemove queue
 				m := currClusterHFConfig.endpointToMachineMapper[endpoint]
 				currClusterHFConfig.unhealthyMembersToRemove[endpoint] = m
@@ -157,7 +165,7 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 	for machineEndpoint, machineToDelete := range currClusterHFConfig.unhealthyMembersToRemove {
 		if err := r.removeEtcdMachine(ctx, etcdCluster, cluster, machineToDelete, getEtcdMachineAddressFromClientURL(machineEndpoint)); err != nil {
 			// log and save error and continue deletion of other members, deletion of this member will be retried since it's still part of unhealthyMembersToRemove
-			r.Log.Error(err, fmt.Sprintf("error removing etcd member machine %v", machineEndpoint))
+			log.Error(err, "error removing etcd member machine", "member", machineToDelete.Name, "endpoint", machineEndpoint)
 			retErr = multierror.Append(retErr, err)
 			continue
 		}
