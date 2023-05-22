@@ -6,6 +6,7 @@ import (
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	"k8s.io/klog/v2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/conditions"
@@ -50,6 +51,7 @@ func (r *EtcdadmClusterReconciler) updateMachinesEtcdReadyLabel(ctx context.Cont
 		}
 
 		if !m.healthy() {
+			log.Info("Machine not healthy yet", "machine", klog.KObj(m.Machine), "listening", m.listening, "healthError", m.healthError, "endpoint", m.endpoint)
 			continue
 		}
 
@@ -108,7 +110,7 @@ func (r *EtcdadmClusterReconciler) getCurrentOwnedMachines(ctx context.Context, 
 	}
 	etcdMachines, err := collections.GetFilteredMachinesForCluster(ctx, client, cluster, EtcdClusterMachines(cluster.Name, etcdadmCluster.Name))
 	if err != nil {
-		return nil, errors.Wrap(err, "Error filtering machines for etcd cluster")
+		return nil, errors.Wrap(err, "reading machines for etcd cluster")
 	}
 	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdadmCluster))
 
