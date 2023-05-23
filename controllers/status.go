@@ -7,6 +7,7 @@ import (
 
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,11 +20,11 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	// This is necessary for CRDs including scale subresources.
 	ec.Status.Selector = selector.String()
 
-	machineNameList := []string{}
+	machines := make([]*clusterv1.Machine, 0, len(ownedMachines))
 	for _, machine := range ownedMachines {
-		machineNameList = append(machineNameList, machine.Name)
+		machines = append(machines, machine.Machine)
 	}
-	log.Info("following machines owned by this etcd cluster", "OwnedMachines", machineNameList)
+	log.Info("Following machines owned by this etcd cluster", "machines", klog.KObjSlice(machines))
 
 	desiredReplicas := *ec.Spec.Replicas
 	ec.Status.ReadyReplicas = int32(len(ownedMachines))
