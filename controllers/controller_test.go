@@ -18,15 +18,16 @@ package controllers
 
 import (
 	"context"
-	"k8s.io/apiserver/pkg/storage/names"
-	"k8s.io/utils/pointer"
-	"sigs.k8s.io/cluster-api/util/conditions"
 	"testing"
 	"time"
 
+	"k8s.io/apiserver/pkg/storage/names"
+	"k8s.io/utils/pointer"
+	"sigs.k8s.io/cluster-api/util/conditions"
+
 	etcdbootstrapv1 "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,7 +38,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	// +kubebuilder:scaffold:imports
 )
@@ -49,10 +49,7 @@ var ctx = ctrl.SetupSignalHandler()
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
-
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Controller Suite",
-		[]Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "Controller Suite")
 }
 
 func setupScheme() *runtime.Scheme {

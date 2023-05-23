@@ -38,7 +38,7 @@ func EtcdMachinesSelectorForCluster(clusterName, etcdClusterName string) labels.
 		return *r
 	}
 	return labels.NewSelector().Add(
-		must(labels.NewRequirement(clusterv1.ClusterLabelName, selection.Equals, []string{clusterName})),
+		must(labels.NewRequirement(clusterv1.ClusterNameLabel, selection.Equals, []string{clusterName})),
 		must(labels.NewRequirement(clusterv1.MachineEtcdClusterLabelName, selection.Equals, []string{etcdClusterName})),
 	)
 }
@@ -57,7 +57,7 @@ func EtcdClusterMachines(clusterName, etcdClusterName string) func(machine *clus
 // ControlPlaneLabelsForCluster returns a set of labels to add to a control plane machine for this specific cluster.
 func EtcdLabelsForCluster(clusterName string, etcdClusterName string) map[string]string {
 	return map[string]string{
-		clusterv1.ClusterLabelName:            clusterName,
+		clusterv1.ClusterNameLabel:            clusterName,
 		clusterv1.MachineEtcdClusterLabelName: etcdClusterName,
 	}
 }
