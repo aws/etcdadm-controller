@@ -442,7 +442,7 @@ func newEtcdadmCluster(cluster *clusterv1.Cluster) *etcdv1.EtcdadmCluster {
 					Version: "v3.4.9",
 				},
 			},
-			Replicas: pointer.Int32Ptr(int32(3)),
+			Replicas: pointer.Int32(int32(3)),
 			InfrastructureTemplate: corev1.ObjectReference{
 				Kind:       infraTemplate.GetKind(),
 				APIVersion: infraTemplate.GetAPIVersion(),

@@ -48,11 +48,12 @@ import (
 type EtcdadmClusterReconciler struct {
 	controller controller.Controller
 	client.Client
-	recorder              record.EventRecorder
-	uncachedClient        client.Reader
-	Log                   logr.Logger
-	Scheme                *runtime.Scheme
-	etcdHealthCheckConfig etcdHealthCheckConfig
+	recorder                record.EventRecorder
+	uncachedClient          client.Reader
+	Log                     logr.Logger
+	Scheme                  *runtime.Scheme
+	etcdHealthCheckConfig   etcdHealthCheckConfig
+	MaxConcurrentReconciles int
 }
 
 func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, done <-chan struct{}) error {
@@ -60,6 +61,7 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 		For(&etcdv1.EtcdadmCluster{}).
 		Owns(&clusterv1.Machine{}).
 		WithEventFilter(predicates.ResourceNotPaused(r.Log)).
+		WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxConcurrentReconciles}).
 		Build(r)
 	if err != nil {
 		return errors.Wrap(err, "failed setting up with a controller manager")
