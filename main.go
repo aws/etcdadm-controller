@@ -56,13 +56,14 @@ func init() {
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
+	var maxConcurrentReconciles int
 	flag.StringVar(&metricsAddr, "metrics-addr", "localhost:8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.StringVar(&watchNamespace, "namespace", "",
 		"Namespace that the controller watches to reconcile etcdadmCluster objects. If unspecified, the controller watches for objects across all namespaces.")
-
+	flag.IntVar(&maxConcurrentReconciles, "max-concurrent-reconciles", 10, "The maximum number of concurrent etcdadm-controller reconciles.")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -83,9 +84,10 @@ func main() {
 	// Setup the context that's going to be used in controllers and for the manager.
 	ctx, stopCh := setupSignalHandler()
 	etcdadmReconciler := &controllers.EtcdadmClusterReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("EtcdadmCluster"),
-		Scheme: mgr.GetScheme(),
+		Client:                  mgr.GetClient(),
+		Log:                     ctrl.Log.WithName("controllers").WithName("EtcdadmCluster"),
+		Scheme:                  mgr.GetScheme(),
+		MaxConcurrentReconciles: maxConcurrentReconciles,
 	}
 	if err = (etcdadmReconciler).SetupWithManager(ctx, mgr, stopCh); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "EtcdadmCluster")
