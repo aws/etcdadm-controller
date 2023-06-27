@@ -13,7 +13,7 @@ env:
 
 jobs:
   generate-jobs:
-    name: zone-aware-controllers
+    name: etcdadm-controller
     runs-on: ubuntu-latest
     strategy: 
       fail-fast: false
