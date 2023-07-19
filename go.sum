@@ -62,8 +62,8 @@ github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hC
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=
 github.com/armon/go-radix v0.0.0-20180808171621-7fddfc383310/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgIH9cCH8=
 github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a h1:idn718Q4B6AGu/h5Sxe66HYVdqdGu2l9Iebqhi/AEoA=
-github.com/aws/etcdadm-bootstrap-provider v1.0.8 h1:zb62DH7SDi9HCLB3OTPfYWockfS5LPThKFVfLiPU/lM=
-github.com/aws/etcdadm-bootstrap-provider v1.0.8/go.mod h1:YF1aYKMGRi8IxLTEoE6KTZXL0EVsuttMxy4c/aQedi4=
+github.com/aws/etcdadm-bootstrap-provider v1.0.9 h1:7hhE7eAKVWUmKSg7Mt/YTYH37wY33HfSrLA7rLtAROk=
+github.com/aws/etcdadm-bootstrap-provider v1.0.9/go.mod h1:YF1aYKMGRi8IxLTEoE6KTZXL0EVsuttMxy4c/aQedi4=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
