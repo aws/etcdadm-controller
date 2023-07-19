@@ -11,6 +11,10 @@ const (
 	// rolling upgrade for aligning the machines spec to the desired state.
 	EtcdRollingUpdateInProgressReason = "EtcdRollingUpdateInProgress"
 
+	// EtcdMaxNumberOfMachinesReached (Severity=Warning) indicatest that there are 2X replicas while executing a
+	// rolling upgrade for aligning the machines spec to the desired state.
+	MaxNumberOfEtcdMachinesReachedReason = "MaxNumberOfEtcdMachinesReached"
+
 	// EtcdCertificatesAvailableCondition indicates that the etcdadm controller has generated the etcd certs to be used by new members
 	// joining the etcd cluster, and to be used by the controlplane
 	EtcdCertificatesAvailableCondition clusterv1.ConditionType = "EtcdCertificatesAvailable"

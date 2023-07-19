@@ -249,12 +249,21 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 	conditions.SetAggregate(etcdCluster, etcdv1.EtcdMachinesReadyCondition, ownedMachines.ConditionGetters(), conditions.AddSourceRef(), conditions.WithStepCounterIf(false))
 
 	numCurrentMachines := len(ownedMachines)
+	numAllEtcdMachines := len(etcdMachines)
 	desiredReplicas = int(*etcdCluster.Spec.Replicas)
 
 	// Etcd machines rollout due to configuration changes (e.g. upgrades) takes precedence over other operations.
 	needRollout := ep.MachinesNeedingRollout()
+	numNeedRollout := len(needRollout)
 	switch {
 	case len(needRollout) > 0:
+		log.Info("Etcd cluster needs a rollout", "totalMachines", numAllEtcdMachines, "needRollout", numNeedRollout)
+		// NOTE: we need to check that numAllEtcdMachines is not 2X replicas or more, as this will create new replicas to infinity
+		if numAllEtcdMachines >= 2*desiredReplicas {
+			log.Info("Cluster has reached the max number of machines, won't create new machines until at least one is deleted", "totalMachines", numAllEtcdMachines)
+			conditions.MarkFalse(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition, etcdv1.MaxNumberOfEtcdMachinesReachedReason, clusterv1.ConditionSeverityWarning, "Etcd cluster has %d total machines, maximum number of machines is %d", numAllEtcdMachines, 2*desiredReplicas)
+			return ctrl.Result{}, nil
+		}
 		log.Info("Rolling out Etcd machines", "needRollout", needRollout.Names())
 		if conditions.IsFalse(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition) && len(ep.UpToDateMachines()) > 0 {
 			// update is already in progress, some machines have been rolled out with the new spec
