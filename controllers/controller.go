@@ -258,8 +258,8 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 	switch {
 	case len(needRollout) > 0:
 		log.Info("Etcd cluster needs a rollout", "totalMachines", numAllEtcdMachines, "needRollout", numNeedRollout)
-		// NOTE: we need to check that numAllEtcdMachines is not 2X replicas or more, as this will create new replicas to infinity
-		if numAllEtcdMachines >= 2*desiredReplicas {
+		// NOTE: we need to check that numAllEtcdMachines is not more than 2X replicas, as this will create new replicas to infinity
+		if numAllEtcdMachines > 2*desiredReplicas {
 			log.Info("Cluster has reached the max number of machines, won't create new machines until at least one is deleted", "totalMachines", numAllEtcdMachines)
 			conditions.MarkFalse(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition, etcdv1.MaxNumberOfEtcdMachinesReachedReason, clusterv1.ConditionSeverityWarning, "Etcd cluster has %d total machines, maximum number of machines is %d", numAllEtcdMachines, 2*desiredReplicas)
 			return ctrl.Result{}, nil
