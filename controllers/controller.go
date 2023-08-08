@@ -342,7 +342,7 @@ func (r *EtcdadmClusterReconciler) reconcileDelete(ctx context.Context, etcdClus
 
 	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster))
 
-	if len(ownedMachines) == 0 {
+	if len(etcdMachines) == 0 {
 		// If no etcd machines are left, remove the finalizer
 		controllerutil.RemoveFinalizer(etcdCluster, etcdv1.EtcdadmClusterFinalizer)
 		return ctrl.Result{}, nil
