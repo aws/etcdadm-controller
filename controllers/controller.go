@@ -340,19 +340,19 @@ func (r *EtcdadmClusterReconciler) reconcileDelete(ctx context.Context, etcdClus
 		return ctrl.Result{}, errors.Wrap(err, "Error filtering machines for etcd cluster")
 	}
 
-	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster))
-
-	if len(ownedMachines) == 0 {
+	if len(etcdMachines) == 0 {
 		// If no etcd machines are left, remove the finalizer
 		controllerutil.RemoveFinalizer(etcdCluster, etcdv1.EtcdadmClusterFinalizer)
 		return ctrl.Result{}, nil
 	}
 
+	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster))
+
 	// This aggregates the state of all machines
 	conditions.SetAggregate(etcdCluster, etcdv1.EtcdMachinesReadyCondition, ownedMachines.ConditionGetters(), conditions.AddSourceRef(), conditions.WithStepCounterIf(false))
 
 	// Delete etcd machines
-	machinesToDelete := ownedMachines.Filter(collections.Not(collections.HasDeletionTimestamp))
+	machinesToDelete := etcdMachines.Filter(collections.Not(collections.HasDeletionTimestamp))
 	var errs []error
 	for _, m := range machinesToDelete {
 		logger := log.WithValues("machine", m)
