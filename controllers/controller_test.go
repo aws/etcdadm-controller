@@ -400,16 +400,9 @@ func TestReconcileDeleteOutdatedMachines(t *testing.T) {
 	etcdadmCluster.Status.Initialized = true
 	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
 	conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
-	machine := newEtcdMachine(etcdadmCluster, cluster)
-	machine2 := newEtcdMachine(etcdadmCluster, cluster)
-	machine2.OwnerReferences = []metav1.OwnerReference{
-		{
-			Kind:       "Cluster",
-			APIVersion: clusterv1.GroupVersion.String(),
-			Name:       cluster.Name,
-			UID:        cluster.GetUID(),
-		},
-	}
+	ownedMachine := newEtcdMachine(etcdadmCluster, cluster)
+	notOwnedMachine := newEtcdMachine(etcdadmCluster, cluster)
+	notOwnedMachine.OwnerReferences = []metav1.OwnerReference{}
 
 	etcdadmCluster.DeletionTimestamp = &metav1.Time{
 		Time: time.Now(),
@@ -419,8 +412,8 @@ func TestReconcileDeleteOutdatedMachines(t *testing.T) {
 		cluster,
 		etcdadmCluster,
 		infraTemplate.DeepCopy(),
-		machine,
-		machine2,
+		ownedMachine,
+		notOwnedMachine,
 	}
 	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 
@@ -434,7 +427,7 @@ func TestReconcileDeleteOutdatedMachines(t *testing.T) {
 
 	machineList := &clusterv1.MachineList{}
 	g.Expect(fakeClient.List(context.Background(), machineList, client.InNamespace("test"))).To(Succeed())
-	g.Expect(len(machineList.Items)).To(Equal(0))
+	g.Expect(machineList.Items).To(BeEmpty())
 }
 
 // newClusterWithExternalEtcd return a CAPI cluster object with managed external etcd ref
