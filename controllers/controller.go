@@ -352,7 +352,7 @@ func (r *EtcdadmClusterReconciler) reconcileDelete(ctx context.Context, etcdClus
 	conditions.SetAggregate(etcdCluster, etcdv1.EtcdMachinesReadyCondition, ownedMachines.ConditionGetters(), conditions.AddSourceRef(), conditions.WithStepCounterIf(false))
 
 	// Delete etcd machines
-	machinesToDelete := ownedMachines.Filter(collections.Not(collections.HasDeletionTimestamp))
+	machinesToDelete := etcdMachines.Filter(collections.Not(collections.HasDeletionTimestamp))
 	var errs []error
 	for _, m := range machinesToDelete {
 		logger := log.WithValues("machine", m)
