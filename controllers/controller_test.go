@@ -390,6 +390,53 @@ func TestReconcileScaleUpEtcdCluster(t *testing.T) {
 	g.Expect(len(machineList.Items)).To(Equal(2))
 }
 
+func TestReconcileDeleteOutdatedMachines(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster := newClusterWithExternalEtcd()
+	etcdadmCluster := newEtcdadmCluster(cluster)
+
+	// CAPI machine controller has set status.Initialized to true, after the first etcd Machine is created, and after creating the Secret containing etcd init address
+	etcdadmCluster.Status.Initialized = true
+	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
+	conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
+	machine := newEtcdMachine(etcdadmCluster, cluster)
+	machine2 := newEtcdMachine(etcdadmCluster, cluster)
+	machine2.OwnerReferences = []metav1.OwnerReference{
+		{
+			Kind:       "Cluster",
+			APIVersion: clusterv1.GroupVersion.String(),
+			Name:       cluster.Name,
+			UID:        cluster.GetUID(),
+		},
+	}
+
+	etcdadmCluster.DeletionTimestamp = &metav1.Time{
+		Time: time.Now(),
+	}
+
+	objects := []client.Object{
+		cluster,
+		etcdadmCluster,
+		infraTemplate.DeepCopy(),
+		machine,
+		machine2,
+	}
+	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+
+	r := &EtcdadmClusterReconciler{
+		Client:         fakeClient,
+		uncachedClient: fakeClient,
+		Log:            log.Log,
+	}
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	machineList := &clusterv1.MachineList{}
+	g.Expect(fakeClient.List(context.Background(), machineList, client.InNamespace("test"))).To(Succeed())
+	g.Expect(len(machineList.Items)).To(Equal(0))
+}
+
 // newClusterWithExternalEtcd return a CAPI cluster object with managed external etcd ref
 func newClusterWithExternalEtcd() *clusterv1.Cluster {
 	return &clusterv1.Cluster{
