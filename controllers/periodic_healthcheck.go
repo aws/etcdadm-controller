@@ -165,7 +165,11 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 	for machineEndpoint, machineToDelete := range currClusterHFConfig.unhealthyMembersToRemove {
 		if err := r.removeEtcdMachine(ctx, etcdCluster, cluster, machineToDelete, getEtcdMachineAddressFromClientURL(machineEndpoint)); err != nil {
 			// log and save error and continue deletion of other members, deletion of this member will be retried since it's still part of unhealthyMembersToRemove
-			log.Error(err, "error removing etcd member machine", "member", machineToDelete.Name, "endpoint", machineEndpoint)
+			if machineToDelete == nil {
+				log.Error(err, "error removing etcd member machine, machine not found", "endpoint", machineEndpoint)
+			} else {
+				log.Error(err, "error removing etcd member machine", "member", machineToDelete.Name, "endpoint", machineEndpoint)
+			}
 			retErr = multierror.Append(retErr, err)
 			continue
 		}
