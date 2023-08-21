@@ -33,7 +33,17 @@ func (r *EtcdadmClusterReconciler) upgradeEtcdCluster(ctx context.Context,
 		// remove older etcd member's machine from being an ownedMachine
 		return ctrl.Result{}, r.removeFromListOfOwnedMachines(ctx, ep, machinesToUpgrade)
 	}
-	if int32(ep.Machines.Len()) == *ec.Spec.Replicas {
+
+	// Under normal circumstances, ep.Machines, which are the etcd machines owned by the etcdadm
+	// cluster should never be higher than the specified number of desired replicas, they should
+	// be equal at most. However, it's possible that due to stale client caches or even manual
+	// updates (where a user re-adds the owner reference to an old etcd machine), an etcdadm cluster
+	// might own at this point more machines that the number of desired replicas. In that case,
+	// regardless of the reason, we want to remove the owner reference before creating new replicas.
+	// If not, the next reconciliation loop will still detect an owned machine out of spec and wil
+	// create a new replica, again without removing ownership of the out of spec machine. This
+	// causes a loop of new machines being created without a limit.
+	if int32(ep.Machines.Len()) >= *ec.Spec.Replicas {
 		log.Info("Scaling down etcd cluster")
 		return ctrl.Result{}, r.removeFromListOfOwnedMachines(ctx, ep, machinesToUpgrade)
 	}
