@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +20,7 @@ import (
 )
 
 const (
-	maxUnhealthyCount   = 5
-	healthCheckInterval = 30
+	maxUnhealthyCount = 5
 )
 
 type etcdHealthCheckConfig struct {
@@ -38,7 +39,7 @@ type etcdadmClusterMemberHealthConfig struct {
 func (r *EtcdadmClusterReconciler) startHealthCheckLoop(ctx context.Context, done <-chan struct{}) {
 	r.Log.Info("Starting periodic healthcheck loop")
 	etcdadmClusterMapper := make(map[types.UID]etcdadmClusterMemberHealthConfig)
-	ticker := time.NewTicker(healthCheckInterval * time.Second)
+	ticker := time.NewTicker(r.HealthCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -63,6 +64,14 @@ func (r *EtcdadmClusterReconciler) startHealthCheck(ctx context.Context, etcdadm
 		if annotations.HasPaused(&ec) {
 			log.Info("EtcdadmCluster reconciliation is paused, skipping health checks")
 			continue
+		}
+		if val, set := ec.Annotations[etcdv1.HealthCheckRetriesAnnotation]; set {
+			if retries, err := strconv.Atoi(val); err != nil || retries < 0 {
+				log.Info(fmt.Sprintf("healthcheck-retries annotation configured with invalid value: %v", err))
+			} else if retries == 0 {
+				log.Info("healthcheck-retries annotation configured to 0, skipping health checks")
+				continue
+			}
 		}
 		if conditions.IsFalse(&ec, etcdv1.EtcdCertificatesAvailableCondition) {
 			log.Info("EtcdadmCluster certificates are not ready, skipping health checks")
@@ -139,7 +148,15 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 				log.Info("Machine for member does not exist", "member", endpoint)
 				currClusterHFConfig.unhealthyMembersToRemove[endpoint] = m
 			}
-			if currClusterHFConfig.unhealthyMembersFrequency[endpoint] >= maxUnhealthyCount {
+			unhealthyCount := maxUnhealthyCount
+			if val, set := etcdCluster.Annotations[etcdv1.HealthCheckRetriesAnnotation]; set {
+				retries, err := strconv.Atoi(val)
+				if err != nil || retries < 0 {
+					log.Info("healthcheck-retries annotation configured with invalid value, using default retries")
+				}
+				unhealthyCount = retries
+			}
+			if currClusterHFConfig.unhealthyMembersFrequency[endpoint] >= unhealthyCount {
 				log.Info("Adding to list of unhealthy members to remove", "member", endpoint)
 				// member has been unresponsive, add the machine to unhealthyMembersToRemove queue
 				m := currClusterHFConfig.endpointToMachineMapper[endpoint]
@@ -156,13 +173,6 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 
 	if len(currClusterHFConfig.unhealthyMembersToRemove) == 0 {
 		return nil
-	}
-
-	finalEndpoints := make([]string, 0, len(endpoints))
-	for _, endpoint := range endpoints {
-		if _, existsInUnhealthyMap := currClusterHFConfig.unhealthyMembersToRemove[endpoint]; !existsInUnhealthyMap {
-			finalEndpoints = append(finalEndpoints, endpoint)
-		}
 	}
 
 	var retErr error
@@ -183,7 +193,6 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 		return retErr
 	}
 
-	etcdCluster.Status.Endpoints = strings.Join(finalEndpoints, ",")
 	etcdCluster.Status.Ready = false
 	return r.Client.Status().Update(ctx, etcdCluster)
 }

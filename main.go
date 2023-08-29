@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	etcdbp "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -57,6 +58,7 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var maxConcurrentReconciles int
+	var healthcheckInterval int
 	flag.StringVar(&metricsAddr, "metrics-addr", "localhost:8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
@@ -64,6 +66,7 @@ func main() {
 	flag.StringVar(&watchNamespace, "namespace", "",
 		"Namespace that the controller watches to reconcile etcdadmCluster objects. If unspecified, the controller watches for objects across all namespaces.")
 	flag.IntVar(&maxConcurrentReconciles, "max-concurrent-reconciles", 10, "The maximum number of concurrent etcdadm-controller reconciles.")
+	flag.IntVar(&healthcheckInterval, "healthcheck-interval", 30, "The time interval between each healthcheck loop in seconds.")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
@@ -88,6 +91,7 @@ func main() {
 		Log:                     ctrl.Log.WithName("controllers").WithName("EtcdadmCluster"),
 		Scheme:                  mgr.GetScheme(),
 		MaxConcurrentReconciles: maxConcurrentReconciles,
+		HealthCheckInterval:     time.Second * time.Duration(healthcheckInterval),
 	}
 	if err = (etcdadmReconciler).SetupWithManager(ctx, mgr, stopCh); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "EtcdadmCluster")
