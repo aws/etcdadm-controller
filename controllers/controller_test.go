@@ -31,7 +31,6 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util"
@@ -68,33 +67,6 @@ func setupScheme() *runtime.Scheme {
 	}
 	return scheme
 }
-
-const (
-	testClusterName                = "testCluster"
-	testNamespace                  = "test"
-	testEtcdadmClusterName         = "testEtcdadmCluster"
-	testInfrastructureTemplateName = "testInfraTemplate"
-)
-
-var (
-	infraTemplate = &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"kind":       "InfrastructureTemplate",
-			"apiVersion": "infra.io/v1",
-			"metadata": map[string]interface{}{
-				"name":      testInfrastructureTemplateName,
-				"namespace": testNamespace,
-			},
-			"spec": map[string]interface{}{
-				"template": map[string]interface{}{
-					"spec": map[string]interface{}{
-						"hello": "world",
-					},
-				},
-			},
-		},
-	}
-)
 
 func TestClusterToEtcdadmCluster(t *testing.T) {
 	g := NewWithT(t)
