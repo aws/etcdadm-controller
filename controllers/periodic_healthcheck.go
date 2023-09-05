@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -30,7 +29,6 @@ type etcdHealthCheckConfig struct {
 type etcdadmClusterMemberHealthConfig struct {
 	unhealthyMembersFrequency map[string]int
 	unhealthyMembersToRemove  map[string]*clusterv1.Machine
-	endpointToMachineMapper   map[string]*clusterv1.Machine
 	cluster                   *clusterv1.Cluster
 	endpoints                 string
 	ownedMachines             collections.Machines
@@ -101,12 +99,10 @@ func (r *EtcdadmClusterReconciler) startHealthCheck(ctx context.Context, etcdadm
 			}
 
 			ownedMachines := r.getOwnedMachines(ctx, cluster, ec)
-			endpointToMachineMapper := r.createEndpointToMachinesMap(ownedMachines)
 
 			etcdadmClusterMapper[ec.UID] = etcdadmClusterMemberHealthConfig{
 				unhealthyMembersFrequency: make(map[string]int),
 				unhealthyMembersToRemove:  make(map[string]*clusterv1.Machine),
-				endpointToMachineMapper:   endpointToMachineMapper,
 				cluster:                   cluster,
 				ownedMachines:             ownedMachines,
 			}
@@ -116,7 +112,6 @@ func (r *EtcdadmClusterReconciler) startHealthCheck(ctx context.Context, etcdadm
 				clusterEntry.endpoints = ec.Status.Endpoints
 				ownedMachines := r.getOwnedMachines(ctx, cluster, ec)
 				clusterEntry.ownedMachines = ownedMachines
-				clusterEntry.endpointToMachineMapper = r.createEndpointToMachinesMap(ownedMachines)
 				etcdadmClusterMapper[ec.UID] = clusterEntry
 			}
 		}
@@ -130,43 +125,66 @@ func (r *EtcdadmClusterReconciler) startHealthCheck(ctx context.Context, etcdadm
 
 func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Context, cluster *clusterv1.Cluster, etcdCluster *etcdv1.EtcdadmCluster, etcdadmClusterMapper map[types.UID]etcdadmClusterMemberHealthConfig) error {
 	log := r.Log.WithValues("EtcdadmCluster", klog.KObj(etcdCluster))
-	if len(etcdCluster.Status.Endpoints) == 0 {
-		log.Info("Skipping healthcheck because Endpoints are empty", "Endpoints", etcdCluster.Status.Endpoints)
+
+	if etcdCluster.Spec.Replicas == nil {
+		err := fmt.Errorf("Replicas is nil")
+		log.Error(err, "Error performing healthcheck")
+		return err
+	}
+
+	desiredReplicas := int(*etcdCluster.Spec.Replicas)
+	etcdMachines, err := collections.GetFilteredMachinesForCluster(ctx, r.uncachedClient, cluster, EtcdClusterMachines(cluster.Name, etcdCluster.Name))
+	if err != nil {
+		log.Error(err, "Error filtering machines for etcd cluster")
+	}
+	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster))
+
+	currClusterHFConfig := etcdadmClusterMapper[etcdCluster.UID]
+	if len(etcdMachines) == 0 {
+		log.Info("Skipping healthcheck because there are no etcd machines")
 		return nil
 	}
-	currClusterHFConfig := etcdadmClusterMapper[etcdCluster.UID]
-	endpoints := strings.Split(etcdCluster.Status.Endpoints, ",")
-	for _, endpoint := range endpoints {
+
+	log.Info("Performing healthchecks on the following etcd machines", "machines", klog.KObjSlice(etcdMachines.UnsortedList()))
+	for _, etcdMachine := range etcdMachines {
+		endpoint := getMachineEtcdEndpoint(etcdMachine)
+		if endpoint == "" {
+			log.Info("Member in bootstrap phase, ignoring")
+			continue
+		}
 		err := r.performEndpointHealthCheck(ctx, cluster, endpoint, false)
 		if err != nil {
-			// member failed healthcheck so add it to unhealthy map or update it's unhealthy count
-			log.Info("Member failed healthcheck, adding to unhealthy members list", "member", endpoint)
 			currClusterHFConfig.unhealthyMembersFrequency[endpoint]++
-			// if machine corresponding to the member does not exist, remove that member without waiting for max unhealthy count to be reached
-			m, ok := currClusterHFConfig.endpointToMachineMapper[endpoint]
-			if !ok || m == nil {
-				log.Info("Machine for member does not exist", "member", endpoint)
-				currClusterHFConfig.unhealthyMembersToRemove[endpoint] = m
-			}
-			unhealthyCount := maxUnhealthyCount
-			if val, set := etcdCluster.Annotations[etcdv1.HealthCheckRetriesAnnotation]; set {
-				retries, err := strconv.Atoi(val)
-				if err != nil || retries < 0 {
-					log.Info("healthcheck-retries annotation configured with invalid value, using default retries")
+			// only check if machine should be removed if it is owned
+			if _, found := ownedMachines[etcdMachine.Name]; found {
+				// member failed healthcheck so add it to unhealthy map or update it's unhealthy count
+				log.Info("Member failed healthcheck, adding to unhealthy members list", "machine", etcdMachine, "IP", endpoint,
+					"unhealthy frequency", currClusterHFConfig.unhealthyMembersFrequency[endpoint])
+				unhealthyCount := maxUnhealthyCount
+				if val, set := etcdCluster.Annotations[etcdv1.HealthCheckRetriesAnnotation]; set {
+					retries, err := strconv.Atoi(val)
+					if err != nil || retries < 0 {
+						log.Info("healthcheck-retries annotation configured with invalid value, using default retries")
+					}
+					unhealthyCount = retries
 				}
-				unhealthyCount = retries
-			}
-			if currClusterHFConfig.unhealthyMembersFrequency[endpoint] >= unhealthyCount {
-				log.Info("Adding to list of unhealthy members to remove", "member", endpoint)
-				// member has been unresponsive, add the machine to unhealthyMembersToRemove queue
-				m := currClusterHFConfig.endpointToMachineMapper[endpoint]
-				currClusterHFConfig.unhealthyMembersToRemove[endpoint] = m
+				if currClusterHFConfig.unhealthyMembersFrequency[endpoint] >= unhealthyCount {
+					log.Info("Adding to list of unhealthy members to remove", "member", endpoint)
+					// member has been unresponsive, add the machine to unhealthyMembersToRemove queue
+					currClusterHFConfig.unhealthyMembersToRemove[endpoint] = etcdMachine
+				}
 			}
 		} else {
-			// member passed healthcheck. so if it was previously added to unhealthy map, remove it since only consecutive failures should lead to member removal
 			_, markedUnhealthy := currClusterHFConfig.unhealthyMembersFrequency[endpoint]
 			if markedUnhealthy {
+				log.Info("Removing from total unhealthy members list", "member", endpoint)
 				delete(currClusterHFConfig.unhealthyMembersFrequency, endpoint)
+			}
+			// member passed healthcheck, so if it was previously added to unhealthy map, remove it since only consecutive failures should lead to member removal
+			_, markedToDelete := currClusterHFConfig.unhealthyMembersToRemove[endpoint]
+			if markedToDelete {
+				log.Info("Removing from list of unhealthy members to remove", "member", endpoint)
+				delete(currClusterHFConfig.unhealthyMembersToRemove, endpoint)
 			}
 		}
 	}
@@ -175,35 +193,52 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 		return nil
 	}
 
-	var retErr error
-	for machineEndpoint, machineToDelete := range currClusterHFConfig.unhealthyMembersToRemove {
-		if err := r.removeEtcdMachine(ctx, etcdCluster, cluster, machineToDelete, getEtcdMachineAddressFromClientURL(machineEndpoint)); err != nil {
-			// log and save error and continue deletion of other members, deletion of this member will be retried since it's still part of unhealthyMembersToRemove
-			if machineToDelete == nil {
-				log.Error(err, "error removing etcd member machine, machine not found", "endpoint", machineEndpoint)
-			} else {
-				log.Error(err, "error removing etcd member machine", "member", machineToDelete.Name, "endpoint", machineEndpoint)
-			}
-			retErr = multierror.Append(retErr, err)
-			continue
-		}
-		delete(currClusterHFConfig.unhealthyMembersToRemove, machineEndpoint)
+	endpointToMachineMapper := make(map[string]*clusterv1.Machine)
+	for _, m := range etcdMachines {
+		machineClientURL := getMemberClientURL(getEtcdMachineAddress(m))
+		endpointToMachineMapper[machineClientURL] = m
 	}
-	if retErr != nil {
-		return retErr
+
+	// clean up old endpoints that are not part of the cluster anymore
+	for e := range currClusterHFConfig.unhealthyMembersFrequency {
+		if m, found := endpointToMachineMapper[e]; m == nil || !found {
+			delete(currClusterHFConfig.unhealthyMembersFrequency, e)
+		}
+	}
+
+	var retErr error
+	// check if quorum is perserved before deleting any machines
+	if len(etcdMachines)-len(currClusterHFConfig.unhealthyMembersFrequency) >= len(etcdMachines)/2+1 {
+		// only touch owned machines in health check alg
+		for machineEndpoint, machineToDelete := range currClusterHFConfig.unhealthyMembersToRemove {
+			// only remove one machine at a time
+			currentMachines := r.getOwnedMachines(ctx, cluster, *etcdCluster)
+			currentMachines = currentMachines.Filter(collections.Not(collections.HasDeletionTimestamp))
+			if len(currentMachines) < desiredReplicas {
+				log.Info("Waiting for new replica to be created before deleting additional replicas")
+				continue
+			}
+			if err := r.removeEtcdMachine(ctx, etcdCluster, cluster, machineToDelete, getEtcdMachineAddressFromClientURL(machineEndpoint)); err != nil {
+				// log and save error and continue deletion of other members, deletion of this member will be retried since it's still part of unhealthyMembersToRemove
+				if machineToDelete == nil {
+					log.Error(err, "error removing etcd member machine, machine not found", "endpoint", machineEndpoint)
+				} else {
+					log.Error(err, "error removing etcd member machine", "member", machineToDelete.Name, "endpoint", machineEndpoint)
+				}
+				retErr = multierror.Append(retErr, err)
+				continue
+			}
+			delete(currClusterHFConfig.unhealthyMembersToRemove, machineEndpoint)
+		}
+		if retErr != nil {
+			return retErr
+		}
+	} else {
+		log.Info("Not safe to remove etcd machines, quorum not preserved")
 	}
 
 	etcdCluster.Status.Ready = false
 	return r.Client.Status().Update(ctx, etcdCluster)
-}
-
-func (r *EtcdadmClusterReconciler) createEndpointToMachinesMap(ownedMachines collections.Machines) map[string]*clusterv1.Machine {
-	endpointToMachineMapper := make(map[string]*clusterv1.Machine)
-	for _, m := range ownedMachines {
-		machineClientURL := getMemberClientURL(getEtcdMachineAddress(m))
-		endpointToMachineMapper[machineClientURL] = m
-	}
-	return endpointToMachineMapper
 }
 
 func (r *EtcdadmClusterReconciler) getOwnedMachines(ctx context.Context, cluster *clusterv1.Cluster, ec etcdv1.EtcdadmCluster) collections.Machines {

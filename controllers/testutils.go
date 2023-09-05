@@ -60,13 +60,15 @@ type etcdadmClusterTest struct {
 	cluster        *clusterv1.Cluster
 	etcdadmCluster *etcdv1.EtcdadmCluster
 	machines       []*clusterv1.Machine
+	machineCounter int
 }
 
-func newEtcdadmClusterTest() *etcdadmClusterTest {
+func newEtcdadmClusterTest(etcdReplicas int) *etcdadmClusterTest {
 	return &etcdadmClusterTest{
-		name:      testClusterName,
-		namespace: testNamespace,
-		replicas:  3,
+		name:           testClusterName,
+		namespace:      testNamespace,
+		replicas:       etcdReplicas,
+		machineCounter: 0,
 	}
 }
 
@@ -157,7 +159,7 @@ func (e *etcdadmClusterTest) newEtcdadmCluster(cluster *clusterv1.Cluster) *etcd
 }
 
 func (e *etcdadmClusterTest) newEtcdMachine() *clusterv1.Machine {
-	return &clusterv1.Machine{
+	etcdMachine := &clusterv1.Machine{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Machine",
 			APIVersion: clusterv1.GroupVersion.String(),
@@ -190,6 +192,8 @@ func (e *etcdadmClusterTest) newEtcdMachine() *clusterv1.Machine {
 			},
 		},
 	}
+	e.machineCounter++
+	return etcdMachine
 }
 
 func (e *etcdadmClusterTest) gatherObjects() []client.Object {

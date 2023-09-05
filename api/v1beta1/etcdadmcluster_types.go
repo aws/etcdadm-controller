@@ -26,6 +26,7 @@ import (
 const (
 	UpgradeInProgressAnnotation = "etcdcluster.cluster.x-k8s.io/upgrading"
 
+	// HealthCheckRetriesAnnotation allows users to configure healthcheck retries. When set to 0, it disables healthchecks.
 	HealthCheckRetriesAnnotation = "etcdcluster.cluster.x-k8s.io/healthcheck-retries"
 
 	// EtcdadmClusterFinalizer is the finalizer applied to EtcdadmCluster resources
