@@ -24,6 +24,7 @@ import (
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -54,6 +55,23 @@ type EtcdadmClusterReconciler struct {
 	Scheme                  *runtime.Scheme
 	etcdHealthCheckConfig   etcdHealthCheckConfig
 	MaxConcurrentReconciles int
+	GetEtcdClient           func(ctx context.Context, cluster *clusterv1.Cluster, endpoints string) (EtcdClient, error)
+	isPortOpen              func(ctx context.Context, endpoint string) bool
+}
+
+// EtcdClient is an interface used for making ETCD v3 API calls.
+// This interface is needed to so the ETCD API calls can be mocked for unit tests.
+type EtcdClient interface {
+	// MemberList lists the current cluster membership.
+	MemberList(ctx context.Context) (*clientv3.MemberListResponse, error)
+	// MemberRemove removes an existing member from the cluster.
+	MemberRemove(ctx context.Context, id uint64) (*clientv3.MemberRemoveResponse, error)
+	// Close closes the EtcdClient session and cancels all watch requests.
+	Close() error
+}
+
+func (r *EtcdadmClusterReconciler) SetIsPortOpen(s func(ctx context.Context, endpoint string) bool) {
+	r.isPortOpen = s
 }
 
 func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, done <-chan struct{}) error {
@@ -79,6 +97,10 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 	r.controller = c
 	r.recorder = mgr.GetEventRecorderFor("etcdadm-cluster-controller")
 	r.uncachedClient = mgr.GetAPIReader()
+	if r.isPortOpen == nil {
+		r.SetIsPortOpen(isPortOpen)
+	}
+	r.GetEtcdClient = r.generateEtcdClient
 
 	go r.startHealthCheckLoop(ctx, done)
 	return nil

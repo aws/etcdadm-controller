@@ -46,71 +46,75 @@ func (r *EtcdadmClusterReconciler) startHealthCheckLoop(ctx context.Context, don
 		case <-done:
 			return
 		case <-ticker.C:
-			etcdClusters := &etcdv1.EtcdadmClusterList{}
-			err := r.Client.List(ctx, etcdClusters)
+			r.startHealthCheck(ctx, etcdadmClusterMapper)
+		}
+	}
+}
+
+func (r *EtcdadmClusterReconciler) startHealthCheck(ctx context.Context, etcdadmClusterMapper map[types.UID]etcdadmClusterMemberHealthConfig) {
+	etcdClusters := &etcdv1.EtcdadmClusterList{}
+	err := r.Client.List(ctx, etcdClusters)
+	if err != nil {
+		r.Log.Error(err, "Error listing etcdadm cluster objects")
+		return
+	}
+	for _, ec := range etcdClusters.Items {
+		log := r.Log.WithValues("EtcdadmCluster", klog.KObj(&ec))
+		if annotations.HasPaused(&ec) {
+			log.Info("EtcdadmCluster reconciliation is paused, skipping health checks")
+			continue
+		}
+		if conditions.IsFalse(&ec, etcdv1.EtcdCertificatesAvailableCondition) {
+			log.Info("EtcdadmCluster certificates are not ready, skipping health checks")
+			continue
+		}
+		if !ec.Status.CreationComplete {
+			// etcdCluster not fully provisioned yet
+			log.Info("EtcdadmCluster is not ready, skipping health checks")
+			continue
+		}
+		if conditions.IsFalse(&ec, etcdv1.EtcdMachinesSpecUpToDateCondition) {
+			// etcdCluster is undergoing upgrade, some machines might not be ready yet, skip periodic healthcheck
+			log.Info("EtcdadmCluster machine specs are not up to date, skipping health checks")
+			continue
+		}
+
+		var cluster *clusterv1.Cluster
+		if clusterEntry, ok := etcdadmClusterMapper[ec.UID]; !ok {
+			cluster, err = util.GetOwnerCluster(ctx, r.Client, ec.ObjectMeta)
 			if err != nil {
-				r.Log.Error(err, "Error listing etcdadm cluster objects")
+				log.Error(err, "Failed to retrieve owner Cluster from the API Server")
 				continue
 			}
-			for _, ec := range etcdClusters.Items {
-				log := r.Log.WithValues("EtcdadmCluster", klog.KObj(&ec))
-				if annotations.HasPaused(&ec) {
-					log.Info("EtcdadmCluster reconciliation is paused, skipping health checks")
-					continue
-				}
-				if conditions.IsFalse(&ec, etcdv1.EtcdCertificatesAvailableCondition) {
-					log.Info("EtcdadmCluster certificates are not ready, skipping health checks")
-					continue
-				}
-				if !ec.Status.CreationComplete {
-					// etcdCluster not fully provisioned yet
-					log.Info("EtcdadmCluster is not ready, skipping health checks")
-					continue
-				}
-				if conditions.IsFalse(&ec, etcdv1.EtcdMachinesSpecUpToDateCondition) {
-					// etcdCluster is undergoing upgrade, some machines might not be ready yet, skip periodic healthcheck
-					log.Info("EtcdadmCluster machine specs are not up to date, skipping health checks")
-					continue
-				}
-
-				var cluster *clusterv1.Cluster
-				if clusterEntry, ok := etcdadmClusterMapper[ec.UID]; !ok {
-					cluster, err = util.GetOwnerCluster(ctx, r.Client, ec.ObjectMeta)
-					if err != nil {
-						log.Error(err, "Failed to retrieve owner Cluster from the API Server")
-						continue
-					}
-					if cluster == nil {
-						log.Info("Cluster Controller has not yet set OwnerRef on etcd cluster")
-						continue
-					}
-
-					ownedMachines := r.getOwnedMachines(ctx, cluster, ec)
-					endpointToMachineMapper := r.createEndpointToMachinesMap(ownedMachines)
-
-					etcdadmClusterMapper[ec.UID] = etcdadmClusterMemberHealthConfig{
-						unhealthyMembersFrequency: make(map[string]int),
-						unhealthyMembersToRemove:  make(map[string]*clusterv1.Machine),
-						endpointToMachineMapper:   endpointToMachineMapper,
-						cluster:                   cluster,
-						ownedMachines:             ownedMachines,
-					}
-				} else {
-					cluster = clusterEntry.cluster
-					if ec.Status.Endpoints != clusterEntry.endpoints {
-						clusterEntry.endpoints = ec.Status.Endpoints
-						ownedMachines := r.getOwnedMachines(ctx, cluster, ec)
-						clusterEntry.ownedMachines = ownedMachines
-						clusterEntry.endpointToMachineMapper = r.createEndpointToMachinesMap(ownedMachines)
-						etcdadmClusterMapper[ec.UID] = clusterEntry
-					}
-				}
-
-				if err := r.periodicEtcdMembersHealthCheck(ctx, cluster, &ec, etcdadmClusterMapper); err != nil {
-					log.Error(err, "Error performing healthcheck")
-					continue
-				}
+			if cluster == nil {
+				log.Info("Cluster Controller has not yet set OwnerRef on etcd cluster")
+				continue
 			}
+
+			ownedMachines := r.getOwnedMachines(ctx, cluster, ec)
+			endpointToMachineMapper := r.createEndpointToMachinesMap(ownedMachines)
+
+			etcdadmClusterMapper[ec.UID] = etcdadmClusterMemberHealthConfig{
+				unhealthyMembersFrequency: make(map[string]int),
+				unhealthyMembersToRemove:  make(map[string]*clusterv1.Machine),
+				endpointToMachineMapper:   endpointToMachineMapper,
+				cluster:                   cluster,
+				ownedMachines:             ownedMachines,
+			}
+		} else {
+			cluster = clusterEntry.cluster
+			if ec.Status.Endpoints != clusterEntry.endpoints {
+				clusterEntry.endpoints = ec.Status.Endpoints
+				ownedMachines := r.getOwnedMachines(ctx, cluster, ec)
+				clusterEntry.ownedMachines = ownedMachines
+				clusterEntry.endpointToMachineMapper = r.createEndpointToMachinesMap(ownedMachines)
+				etcdadmClusterMapper[ec.UID] = clusterEntry
+			}
+		}
+
+		if err := r.periodicEtcdMembersHealthCheck(ctx, cluster, &ec, etcdadmClusterMapper); err != nil {
+			log.Error(err, "Error performing healthcheck")
+			continue
 		}
 	}
 }

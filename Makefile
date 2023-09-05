@@ -106,6 +106,22 @@ bin/golangci-lint:
 clean:
 	rm -Rf ./bin
 
+.PHONY: mocks
+mocks: export GOPATH := $(shell go env GOPATH)
+mocks: MOCKGEN := ${GOPATH}/bin/mockgen --build_flags=--mod=mod
+mocks: ## Generate mocks
+	go install github.com/golang/mock/mockgen@v1.6.0
+	${MOCKGEN} -destination controllers/mocks/roundtripper.go -package=mocks net/http RoundTripper
+	${MOCKGEN} -destination controllers/mocks/etcdclient.go -package=mocks -source "controllers/controller.go" EtcdClient
+
+.PHONY: verify-mocks
+verify-mocks: mocks ## Verify if mocks need to be updated
+	$(eval DIFF=$(shell git diff --raw -- '*.go' | wc -c))
+	if [[ $(DIFF) != 0 ]]; then \
+		echo "Detected out of date mocks"; \
+		exit 1;\
+	fi
+
 $(CONTROLLER_GEN): $(TOOLS_BIN_DIR) # Build controller-gen from tools folder.
 	GOBIN=$(ABS_TOOLS_BIN_DIR) go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.11.4
 

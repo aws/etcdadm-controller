@@ -43,7 +43,7 @@ func (r *EtcdadmClusterReconciler) performEndpointHealthCheck(ctx context.Contex
 	if err != nil {
 		return errors.Wrapf(err, "invalid etcd endpoint url")
 	}
-	if !isPortOpen(ctx, u.Host) {
+	if !r.isPortOpen(ctx, u.Host) {
 		return portNotOpenErr
 	}
 
@@ -65,13 +65,13 @@ func (r *EtcdadmClusterReconciler) performEndpointHealthCheck(ctx context.Contex
 	// reuse connection
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return errors.Wrap(err, "Etcd member not ready, retry")
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return errors.Wrap(err, "Etcd member not ready, retry")
 	}
 
 	if err := parseEtcdHealthCheckOutput(body); err != nil {

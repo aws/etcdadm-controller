@@ -47,7 +47,7 @@ func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec 
 }
 func (r *EtcdadmClusterReconciler) removeEtcdMachine(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, machineToDelete *clusterv1.Machine, machineAddress string) error {
 	peerURL := fmt.Sprintf("https://%s:2380", machineAddress)
-	etcdClient, err := r.generateEtcdClient(ctx, cluster, ec.Status.Endpoints)
+	etcdClient, err := r.GetEtcdClient(ctx, cluster, ec.Status.Endpoints)
 	if err != nil {
 		return fmt.Errorf("error creating etcd client, err: %v", err)
 	}
@@ -60,7 +60,7 @@ func (r *EtcdadmClusterReconciler) removeEtcdMachine(ctx context.Context, ec *et
 
 }
 
-func (r *EtcdadmClusterReconciler) generateEtcdClient(ctx context.Context, cluster *clusterv1.Cluster, endpoints string) (*clientv3.Client, error) {
+func (r *EtcdadmClusterReconciler) generateEtcdClient(ctx context.Context, cluster *clusterv1.Cluster, endpoints string) (EtcdClient, error) {
 	caCertPool := x509.NewCertPool()
 	caCert, err := r.getCACert(ctx, cluster)
 	if err != nil {
@@ -85,7 +85,7 @@ func (r *EtcdadmClusterReconciler) generateEtcdClient(ctx context.Context, clust
 	return etcdClient, err
 }
 
-func (r *EtcdadmClusterReconciler) removeEtcdMemberAndDeleteMachine(ctx context.Context, etcdClient *clientv3.Client, peerURL string, machineToDelete *clusterv1.Machine) error {
+func (r *EtcdadmClusterReconciler) removeEtcdMemberAndDeleteMachine(ctx context.Context, etcdClient EtcdClient, peerURL string, machineToDelete *clusterv1.Machine) error {
 	log := r.Log
 	// Etcdadm has a "reset" command to remove an etcd member. But we can't run that command on the CAPI machine object after it's provisioned.
 	// so the following logic is based on how etcdadm performs "reset" https://github.com/kubernetes-sigs/etcdadm/blob/master/cmd/reset.go#L65
