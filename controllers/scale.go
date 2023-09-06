@@ -45,6 +45,7 @@ func (r *EtcdadmClusterReconciler) scaleDownEtcdCluster(ctx context.Context, ec 
 	machineAddress := getEtcdMachineAddress(machineToDelete)
 	return ctrl.Result{}, r.removeEtcdMachine(ctx, ec, cluster, machineToDelete, machineAddress)
 }
+
 func (r *EtcdadmClusterReconciler) removeEtcdMachine(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, machineToDelete *clusterv1.Machine, machineAddress string) error {
 	peerURL := fmt.Sprintf("https://%s:2380", machineAddress)
 	etcdClient, err := r.GetEtcdClient(ctx, cluster, ec.Status.Endpoints)

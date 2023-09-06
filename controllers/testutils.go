@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math/rand"
@@ -11,6 +12,8 @@ import (
 	etcdbootstrapv1 "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	"github.com/google/uuid"
+	"go.etcd.io/etcd/api/v3/etcdserverpb"
+	clientv3 "go.etcd.io/etcd/client/v3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -48,11 +51,6 @@ var (
 			},
 		},
 	}
-
-	healthyEtcdResponse = &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewBufferString("{\"Health\": \"true\"}")),
-	}
 )
 
 type etcdadmClusterTest struct {
@@ -72,7 +70,7 @@ func newEtcdadmClusterTest() *etcdadmClusterTest {
 	}
 }
 
-func (e *etcdadmClusterTest) buildClusterWithExternalEtcd() {
+func (e *etcdadmClusterTest) buildClusterWithExternalEtcd() *etcdadmClusterTest {
 	e.cluster = e.newClusterWithExternalEtcd()
 	e.etcdadmCluster = e.newEtcdadmCluster(e.cluster)
 	e.machines = []*clusterv1.Machine{}
@@ -83,6 +81,15 @@ func (e *etcdadmClusterTest) buildClusterWithExternalEtcd() {
 		endpoints = append(endpoints, fmt.Sprintf("https://%v:2379", machine.Status.Addresses[0].Address))
 	}
 	e.etcdadmCluster.Status.Endpoints = strings.Join(endpoints, ",")
+	return e
+}
+
+func (e *etcdadmClusterTest) withHealthCheckRetries(retries int) *etcdadmClusterTest {
+	if e.etcdadmCluster.Annotations == nil {
+		e.etcdadmCluster.Annotations = map[string]string{}
+	}
+	e.etcdadmCluster.Annotations[etcdv1.HealthCheckRetriesAnnotation] = fmt.Sprintf("%d", retries)
+	return e
 }
 
 // newClusterWithExternalEtcd return a CAPI cluster object with managed external etcd ref
@@ -156,10 +163,11 @@ func (e *etcdadmClusterTest) newEtcdMachine() *clusterv1.Machine {
 			APIVersion: clusterv1.GroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      names.SimpleNameGenerator.GenerateName(e.etcdadmCluster.Name + "-"),
-			Namespace: e.etcdadmCluster.Namespace,
-			Labels:    EtcdLabelsForCluster(e.cluster.Name, e.etcdadmCluster.Name),
-			UID:       types.UID(uuid.New().String()),
+			Name:       names.SimpleNameGenerator.GenerateName(e.etcdadmCluster.Name + "-"),
+			Namespace:  e.etcdadmCluster.Namespace,
+			Labels:     EtcdLabelsForCluster(e.cluster.Name, e.etcdadmCluster.Name),
+			UID:        types.UID(uuid.New().String()),
+			Finalizers: []string{etcdv1.EtcdadmClusterFinalizer},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(e.etcdadmCluster, etcdv1.GroupVersion.WithKind("EtcdadmCluster")),
 			},
@@ -194,4 +202,38 @@ func (e *etcdadmClusterTest) gatherObjects() []client.Object {
 
 func (e *etcdadmClusterTest) getEtcdClusterName() string {
 	return fmt.Sprintf("%s-%s", e.name, etcdClusterNameSuffix)
+}
+
+func (e *etcdadmClusterTest) getMemberListResponse() *clientv3.MemberListResponse {
+	members := []*etcdserverpb.Member{}
+	for _, machine := range e.machines {
+		members = append(members, &etcdserverpb.Member{
+			PeerURLs: []string{fmt.Sprintf("https://%s:2379", machine.Status.Addresses[0].Address)},
+		})
+	}
+	return &clientv3.MemberListResponse{
+		Members: members,
+	}
+}
+
+func (e *etcdadmClusterTest) getDeletedMachines(client client.Client) []*clusterv1.Machine {
+	machines := []*clusterv1.Machine{}
+	for _, machine := range e.machines {
+		m := &clusterv1.Machine{}
+		_ = client.Get(context.Background(), types.NamespacedName{
+			Name:      machine.Name,
+			Namespace: machine.Namespace,
+		}, m)
+		if m.DeletionTimestamp != nil {
+			machines = append(machines, m)
+		}
+	}
+	return machines
+}
+
+func getHealthyEtcdResponse() *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString("{\"Health\": \"true\"}")),
+	}
 }

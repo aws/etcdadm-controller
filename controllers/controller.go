@@ -55,6 +55,7 @@ type EtcdadmClusterReconciler struct {
 	Scheme                  *runtime.Scheme
 	etcdHealthCheckConfig   etcdHealthCheckConfig
 	MaxConcurrentReconciles int
+	HealthCheckInterval     time.Duration
 	GetEtcdClient           func(ctx context.Context, cluster *clusterv1.Cluster, endpoints string) (EtcdClient, error)
 	isPortOpen              func(ctx context.Context, endpoint string) bool
 }
