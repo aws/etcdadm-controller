@@ -67,7 +67,7 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	sort.Strings(endpoints)
 	currEndpoints := strings.Join(endpoints, ",")
 
-	log.Info("Comparing current and previous endpoints")
+	log.Info("Comparing current and previous endpoints", "current endpoints", currEndpoints, "previous endpoints", ec.Status.Endpoints)
 	// Checking if endpoints have changed. This avoids unnecessary client calls
 	// to get and update the Secret containing the endpoints
 	if ec.Status.Endpoints != currEndpoints {
