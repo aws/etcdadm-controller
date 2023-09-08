@@ -145,6 +145,20 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 		return nil
 	}
 
+	// clean up old machines
+	for ip := range currClusterHFConfig.unhealthyMembersFrequency {
+		found := false
+		for _, machine := range etcdMachines {
+			if getMemberClientURL(getEtcdMachineAddress(machine)) == ip {
+				found = true
+			}
+		}
+		if !found {
+			log.Info("Removing member from unhealthyMembersFrequency, member does not exist", "member", ip)
+			delete(currClusterHFConfig.unhealthyMembersFrequency, ip)
+		}
+	}
+
 	log.Info("Performing healthchecks on the following etcd machines", "machines", klog.KObjSlice(etcdMachines.UnsortedList()))
 	for _, etcdMachine := range etcdMachines {
 		endpoint := getMachineEtcdEndpoint(etcdMachine)
@@ -191,19 +205,6 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 
 	if len(currClusterHFConfig.unhealthyMembersToRemove) == 0 {
 		return nil
-	}
-
-	endpointToMachineMapper := make(map[string]*clusterv1.Machine)
-	for _, m := range etcdMachines {
-		machineClientURL := getMemberClientURL(getEtcdMachineAddress(m))
-		endpointToMachineMapper[machineClientURL] = m
-	}
-
-	// clean up old endpoints that are not part of the cluster anymore
-	for e := range currClusterHFConfig.unhealthyMembersFrequency {
-		if m, found := endpointToMachineMapper[e]; m == nil || !found {
-			delete(currClusterHFConfig.unhealthyMembersFrequency, e)
-		}
 	}
 
 	var retErr error
