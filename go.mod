@@ -1,6 +1,6 @@
 module github.com/aws/etcdadm-controller
 
-go 1.19
+go 1.21
 
 require (
 	github.com/aws/etcdadm-bootstrap-provider v1.0.9
