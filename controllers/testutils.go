@@ -61,6 +61,7 @@ type etcdadmClusterTest struct {
 	etcdadmCluster *etcdv1.EtcdadmCluster
 	machines       []*clusterv1.Machine
 	machineCounter int
+	initSecret     *corev1.Secret
 }
 
 func newEtcdadmClusterTest(etcdReplicas int) *etcdadmClusterTest {
@@ -212,11 +213,21 @@ func (e *etcdadmClusterTest) getMemberListResponse() *clientv3.MemberListRespons
 	members := []*etcdserverpb.Member{}
 	for _, machine := range e.machines {
 		members = append(members, &etcdserverpb.Member{
-			PeerURLs: []string{fmt.Sprintf("https://%s:2379", machine.Status.Addresses[0].Address)},
+			PeerURLs: []string{fmt.Sprintf("https://%s:2380", machine.Status.Addresses[0].Address)},
 		})
 	}
 	return &clientv3.MemberListResponse{
 		Members: members,
+	}
+}
+
+func (e *etcdadmClusterTest) getMemberRemoveResponse() *clientv3.MemberRemoveResponse {
+	return &clientv3.MemberRemoveResponse{
+		Members: []*etcdserverpb.Member{
+			{
+				PeerURLs: []string{fmt.Sprintf("https://%s:2380", e.machines[0].Status.Addresses[0].Address)},
+			},
+		},
 	}
 }
 
@@ -239,5 +250,22 @@ func getHealthyEtcdResponse() *http.Response {
 	return &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBufferString("{\"Health\": \"true\"}")),
+	}
+}
+
+func (e *etcdadmClusterTest) newInitSecret() {
+	e.initSecret = &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Secret",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      e.etcdadmCluster.Status.InitMachineAddress,
+			Namespace: e.cluster.Namespace,
+		},
+		Data: map[string][]byte{
+			"address":    []byte(getEtcdMachineAddressFromClientURL(e.etcdadmCluster.Status.InitMachineAddress)),
+			"clientUrls": []byte(e.etcdadmCluster.Status.Endpoints),
+		},
 	}
 }

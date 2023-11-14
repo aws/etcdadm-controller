@@ -27,6 +27,7 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	log.Info("Following machines owned by this etcd cluster", "machines", klog.KObjSlice(machines))
 
 	desiredReplicas := *ec.Spec.Replicas
+
 	ec.Status.ReadyReplicas = int32(len(ownedMachines))
 
 	if !ec.DeletionTimestamp.IsZero() {
@@ -37,14 +38,15 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 
 	if readyReplicas < desiredReplicas {
 		conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleUpInProgressReason, clusterv1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
+		ec.Status.Ready = false
 		return nil
 	}
 
 	if readyReplicas > desiredReplicas {
 		conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleDownInProgressReason, clusterv1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
+		ec.Status.Ready = false
 		return nil
 	}
-	conditions.MarkTrue(ec, etcdv1.EtcdClusterResizeCompleted)
 
 	for _, m := range ownedMachines {
 		if !m.healthy() {
@@ -58,6 +60,8 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 			}
 		}
 	}
+
+	conditions.MarkTrue(ec, etcdv1.EtcdClusterResizeCompleted)
 
 	// etcd ready when all machines have address set
 	ec.Status.Ready = true

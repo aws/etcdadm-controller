@@ -278,11 +278,18 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 	// Etcd machines rollout due to configuration changes (e.g. upgrades) takes precedence over other operations.
 	needRollout := ep.MachinesNeedingRollout()
 	numNeedRollout := len(needRollout)
+
+	ep2, err := NewEtcdPlane(ctx, r.Client, cluster, etcdCluster, etcdMachines)
+	if err != nil {
+		return ctrl.Result{}, errors.Wrap(err, "Error initializing internal object EtcdPlane")
+	}
+	numOutOfDateMachines := len(ep2.OutOfDateMachines())
+
 	switch {
 	case len(needRollout) > 0:
 		log.Info("Etcd cluster needs a rollout", "totalMachines", numAllEtcdMachines, "needRollout", numNeedRollout)
-		// NOTE: we need to check that numAllEtcdMachines is not more than 2X replicas, as this will create new replicas to infinity
-		if numAllEtcdMachines > 2*desiredReplicas {
+		// NOTE: There has been issues with etcd rolling out new machines till infinity. Add an upper limit as a fail safe against this situation.
+		if numAllEtcdMachines > numOutOfDateMachines+desiredReplicas {
 			log.Info("Cluster has reached the max number of machines, won't create new machines until at least one is deleted", "totalMachines", numAllEtcdMachines)
 			conditions.MarkFalse(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition, etcdv1.MaxNumberOfEtcdMachinesReachedReason, clusterv1.ConditionSeverityWarning, "Etcd cluster has %d total machines, maximum number of machines is %d", numAllEtcdMachines, 2*desiredReplicas)
 			return ctrl.Result{}, nil
@@ -364,6 +371,14 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 		log.Info("Scaling down etcd cluster", "Desired", desiredReplicas, "Existing", numCurrentMachines)
 		// The last parameter corresponds to Machines that need to be rolled out, eg during upgrade, should always be empty here.
 		return r.scaleDownEtcdCluster(ctx, etcdCluster, cluster, ep, collections.Machines{})
+	// In the case that we do a scale operation on etcd clusters, remove upgradeInProgressAnnotation once scale is complete and there
+	// are no more out of date machines
+	case numCurrentMachines == desiredReplicas && numNeedRollout == 0:
+		_, hasUpgradeAnnotation := etcdCluster.Annotations[etcdv1.UpgradeInProgressAnnotation]
+		if hasUpgradeAnnotation {
+			log.Info("Removing update in progress annotation", "upgrading", hasUpgradeAnnotation)
+			delete(etcdCluster.Annotations, etcdv1.UpgradeInProgressAnnotation)
+		}
 	}
 
 	return ctrl.Result{}, nil
