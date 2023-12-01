@@ -312,6 +312,8 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 			}
 		}
 		conditions.MarkFalse(ep.EC, etcdv1.EtcdMachinesSpecUpToDateCondition, etcdv1.EtcdRollingUpdateInProgressReason, clusterv1.ConditionSeverityWarning, "Rolling %d replicas with outdated spec (%d replicas up to date)", len(needRollout), len(ep.Machines)-len(needRollout))
+		conditions.MarkFalse(ep.EC, etcdv1.EtcdCertificatesAvailableCondition, etcdv1.EtcdRollingUpdateInProgressReason, clusterv1.ConditionSeverityWarning, "Rolling %d replicas with outdated spec (%d replicas up to date)", len(needRollout), len(ep.Machines)-len(needRollout))
+
 		return r.upgradeEtcdCluster(ctx, cluster, etcdCluster, ep, needRollout)
 	default:
 		// make sure last upgrade operation is marked as completed.
@@ -323,6 +325,19 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 			_, hasUpgradeAnnotation := etcdCluster.Annotations[etcdv1.UpgradeInProgressAnnotation]
 			if hasUpgradeAnnotation {
 				delete(etcdCluster.Annotations, etcdv1.UpgradeInProgressAnnotation)
+			}
+		}
+
+		// If the ETCD nodes have performed a rollout, the etcd client certs on the CP nodes need to be renewed.
+		// We mark the condition EtcdCertificatesAvailable False in the rollout case and check for its value.
+		// The default case is hit right after ScaleUp of ETCD nodes is completed and before the first CP comes up.
+		// If EtcdCertificatesAvailable is False, this means we need to update the certs.
+		// EtcdCertificatesAvailable is set to True once the certs are updated.
+		if conditions.IsFalse(ep.EC, etcdv1.EtcdCertificatesAvailableCondition) {
+			log.Info("Updating Etcd client certs")
+			if err := r.generateCAandClientCertSecrets(ctx, cluster, etcdCluster); err != nil {
+				r.Log.Error(err, "error generating etcd CA certs")
+				return ctrl.Result{}, err
 			}
 		}
 	}
