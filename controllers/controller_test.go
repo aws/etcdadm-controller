@@ -402,6 +402,62 @@ func TestReconcileDeleteOutdatedMachines(t *testing.T) {
 	g.Expect(machineList.Items).To(BeEmpty())
 }
 
+func TestReconcileNeedsRollOutEtcdCluster(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster := newClusterWithExternalEtcd()
+	etcdadmCluster := newEtcdadmCluster(cluster)
+
+	// CAPI machine controller has set status.Initialized to true, after the first etcd Machine is created, and after creating the Secret containing etcd init address
+	etcdadmCluster.Status.Initialized = true
+	etcdadmCluster.Spec.Replicas = pointer.Int32(int32(1))
+
+	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
+	conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
+	machine := newEtcdMachine(etcdadmCluster, cluster)
+	machine.Spec.Bootstrap = clusterv1.Bootstrap{
+		ConfigRef: &corev1.ObjectReference{
+			Name:      testClusterName,
+			Namespace: testNamespace,
+		},
+	}
+
+	// EtcdadmConfig with a different spec to trigger rollout.
+	etcdadmConfig := &etcdbootstrapv1.EtcdadmConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: testNamespace,
+			Name:      testClusterName,
+		},
+		Spec: etcdbootstrapv1.EtcdadmConfigSpec{
+			EtcdadmInstallCommands: []string{"etcdadmInstallCommands is not empty"},
+			CloudInitConfig: &etcdbootstrapv1.CloudInitConfig{
+				Version: "v3.4.9",
+			},
+		},
+	}
+
+	objects := []client.Object{
+		cluster,
+		etcdadmCluster,
+		infraTemplate.DeepCopy(),
+		machine,
+		etcdadmConfig,
+	}
+	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+
+	r := &EtcdadmClusterReconciler{
+		Client:         fakeClient,
+		uncachedClient: fakeClient,
+		Log:            log.Log,
+	}
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	machineList := &clusterv1.MachineList{}
+	g.Expect(fakeClient.List(context.Background(), machineList, client.InNamespace("test"))).To(Succeed())
+	g.Expect(len(machineList.Items)).To(Equal(2))
+}
+
 // newClusterWithExternalEtcd return a CAPI cluster object with managed external etcd ref
 func newClusterWithExternalEtcd() *clusterv1.Cluster {
 	return &clusterv1.Cluster{

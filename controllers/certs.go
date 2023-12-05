@@ -22,6 +22,7 @@ import (
 	"sigs.k8s.io/cluster-api/util/certs"
 	"sigs.k8s.io/cluster-api/util/secret"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/etcdadm/certs/pkiutil"
 	"sigs.k8s.io/etcdadm/constants"
 )
@@ -87,7 +88,17 @@ func (r *EtcdadmClusterReconciler) generateCAandClientCertSecrets(ctx context.Co
 		Generated: true,
 	}
 	s := apiServerClientCertKeyPair.AsSecret(client.ObjectKey{Name: cluster.Name, Namespace: cluster.Namespace}, *metav1.NewControllerRef(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdadmCluster")))
-	if err := r.Client.Create(ctx, s); err != nil && !apierrors.IsAlreadyExists(err) {
+	secretToPatch := s.DeepCopy()
+
+	// CreateOrPatch performs a create operation when the object is not found.
+	// But if an object is found, the function expects to reconcile the fields we want patched in a callback func.
+	// CreateOrPatch does a GET call and overwrites the object we pass in with whats on the cluster.
+	// Hence we keep a copy of the newly generated secret and update the secret Data field in a callback func.
+	// Ex; https://github.com/kubernetes-sigs/controller-runtime/blob/v0.14.5/pkg/controller/controllerutil/example_test.go
+	if _, err := controllerutil.CreateOrPatch(ctx, r.Client, s, func() error {
+		s.Data = secretToPatch.Data
+		return nil
+	}); err != nil {
 		return fmt.Errorf("failure while saving etcd client key and certificate: %v", err)
 	}
 
