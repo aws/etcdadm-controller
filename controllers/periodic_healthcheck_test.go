@@ -130,6 +130,7 @@ func TestStartHealthCheckLoopWithCustomRetries(t *testing.T) {
 
 	mockRt.EXPECT().RoundTrip(gomock.Any()).Return(nil, errors.New("error")).Times(9)
 	mockEtcd.EXPECT().MemberList(gomock.Any()).Return(etcdTest.getMemberListResponse(), nil).Times(3)
+	mockEtcd.EXPECT().MemberRemove(gomock.Any(), gomock.Any()).Return(etcdTest.getMemberRemoveResponse(), nil).Times(1)
 	mockEtcd.EXPECT().Close().Times(3)
 
 	r.startHealthCheck(context.Background(), etcdadmClusterMapper)
@@ -288,6 +289,7 @@ func TestQuorumPreserved(t *testing.T) {
 	etcdadmClusterMapper := make(map[types.UID]etcdadmClusterMemberHealthConfig)
 
 	mockEtcd.EXPECT().MemberList(gomock.Any()).Return(etcdTest.getMemberListResponse(), nil).Times(5)
+	mockEtcd.EXPECT().MemberRemove(gomock.Any(), gomock.Any()).Return(etcdTest.getMemberRemoveResponse(), nil).Times(1)
 	mockEtcd.EXPECT().Close().Times(5)
 	for i := 0; i < 5; i++ {
 		r.startHealthCheck(context.Background(), etcdadmClusterMapper)

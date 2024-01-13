@@ -142,6 +142,15 @@ func (ep *EtcdPlane) MachinesNeedingRollout() collections.Machines {
 	)
 }
 
+// OutOfDateMachines return a list of all machines with an out of date config.
+func (ep *EtcdPlane) OutOfDateMachines() collections.Machines {
+	// Return machines if they are scheduled for rollout or if with an outdated configuration.
+	return ep.Machines.AnyFilter(
+		//Machines that do not match with Etcdadm config.
+		collections.Not(MatchesEtcdadmClusterConfiguration(ep.infraResources, ep.etcdadmConfigs, ep.EC)),
+	)
+}
+
 // MatchesEtcdadmClusterConfiguration returns a filter to find all machines that matches with EtcdadmCluster config and do not require any rollout.
 // Etcd version and extra params, and infrastructure template need to be equivalent.
 func MatchesEtcdadmClusterConfiguration(infraConfigs map[string]*unstructured.Unstructured, machineConfigs map[string]*etcdbootstrapv1.EtcdadmConfig, ec *etcdv1.EtcdadmCluster) func(machine *clusterv1.Machine) bool {

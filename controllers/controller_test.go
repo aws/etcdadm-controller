@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -27,6 +28,8 @@ import (
 
 	etcdbootstrapv1 "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
+	"github.com/aws/etcdadm-controller/controllers/mocks"
+	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -458,6 +461,110 @@ func TestReconcileNeedsRollOutEtcdCluster(t *testing.T) {
 	g.Expect(len(machineList.Items)).To(Equal(2))
 }
 
+func TestReconcileScaleEtcdClusterUpgradeDone(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster := newClusterWithExternalEtcd()
+	etcdadmCluster := newEtcdadmCluster(cluster)
+
+	// CAPI machine controller has set status.Initialized to true, after the first etcd Machine is created, and after creating the Secret containing etcd init address
+	etcdadmCluster.Status.Initialized = true
+	etcdadmCluster.Annotations = map[string]string{
+		etcdv1.UpgradeInProgressAnnotation: "upgrading",
+	}
+
+	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
+	conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
+	machine1 := newEtcdMachine(etcdadmCluster, cluster)
+	machine2 := newEtcdMachine(etcdadmCluster, cluster)
+	machine3 := newEtcdMachine(etcdadmCluster, cluster)
+
+	etcdadmCluster.Spec.Replicas = pointer.Int32(int32(5))
+	machine4 := newEtcdMachine(etcdadmCluster, cluster)
+	machine5 := newEtcdMachine(etcdadmCluster, cluster)
+
+	objects := []client.Object{
+		cluster,
+		etcdadmCluster,
+		infraTemplate.DeepCopy(),
+		machine1,
+		machine2,
+		machine3,
+		machine4,
+		machine5,
+	}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+
+	r := &EtcdadmClusterReconciler{
+		Client:         fakeClient,
+		uncachedClient: fakeClient,
+		Log:            log.Log,
+	}
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	machineList := &clusterv1.MachineList{}
+	g.Expect(fakeClient.List(context.Background(), machineList, client.InNamespace("test"))).To(Succeed())
+	g.Expect(len(machineList.Items)).To(Equal(5))
+
+	updatedEtcdadmCluster := &etcdv1.EtcdadmCluster{}
+	g.Expect(fakeClient.Get(ctx, util.ObjectKey(etcdadmCluster), updatedEtcdadmCluster)).To(Succeed())
+	g.Expect(updatedEtcdadmCluster.Annotations[etcdv1.UpgradeInProgressAnnotation]).To(BeEmpty())
+}
+
+func TestReconcileScaleDownEtcdCluster(t *testing.T) {
+	g := NewWithT(t)
+
+	etcdTest, fakeKubernetesClient, mockEtcd, mockHttpClient := setupEtcdScalingTest(t)
+	etcdEtcdClient := func(ctx context.Context, cluster *clusterv1.Cluster, endpoints string) (EtcdClient, error) {
+		return mockEtcd, nil
+	}
+
+	r := &EtcdadmClusterReconciler{
+		Client:         fakeKubernetesClient,
+		uncachedClient: fakeKubernetesClient,
+		Log:            log.Log,
+		GetEtcdClient:  etcdEtcdClient,
+	}
+
+	r.etcdHealthCheckConfig.clusterToHttpClient.Store(etcdTest.cluster.UID, mockHttpClient)
+	r.SetIsPortOpen(isPortOpenMock)
+
+	mockEtcd.EXPECT().MemberList(gomock.Any()).Return(etcdTest.getMemberListResponse(), nil)
+	mockEtcd.EXPECT().Close()
+
+	_, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(etcdTest.etcdadmCluster)})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	machineList := &clusterv1.MachineList{}
+	g.Expect(fakeKubernetesClient.List(context.Background(), machineList, client.InNamespace("test"))).To(Succeed())
+	g.Expect(len(machineList.Items)).To(Equal(3))
+
+	g.Expect(fakeKubernetesClient.Get(ctx, util.ObjectKey(etcdTest.etcdadmCluster), etcdTest.etcdadmCluster)).To(Succeed())
+	_, upgradeInProgress := etcdTest.etcdadmCluster.Annotations[etcdv1.UpgradeInProgressAnnotation]
+	g.Expect(upgradeInProgress).To(BeFalse())
+
+	// update desired replicas to be 1
+	etcdTest.etcdadmCluster.Spec.Replicas = pointer.Int32(int32(1))
+	g.Expect(fakeKubernetesClient.Update(ctx, etcdTest.etcdadmCluster)).To(Succeed())
+
+	g.Expect(fakeKubernetesClient.Get(ctx, util.ObjectKey(etcdTest.etcdadmCluster), etcdTest.etcdadmCluster)).To(Succeed())
+
+	mockEtcd.EXPECT().MemberList(gomock.Any()).Return(etcdTest.getMemberListResponse(), nil)
+	mockEtcd.EXPECT().MemberRemove(gomock.Any(), gomock.Any()).Return(etcdTest.getMemberRemoveResponse(), nil)
+	mockEtcd.EXPECT().Close()
+
+	_, err = r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(etcdTest.etcdadmCluster)})
+	g.Expect(err).NotTo(HaveOccurred())
+
+	g.Expect(etcdTest.getDeletedMachines(fakeKubernetesClient)).To(HaveLen(1))
+
+	updatedEtcdadmCluster := &etcdv1.EtcdadmCluster{}
+	g.Expect(fakeKubernetesClient.Get(ctx, util.ObjectKey(etcdTest.etcdadmCluster), updatedEtcdadmCluster)).To(Succeed())
+	g.Expect(updatedEtcdadmCluster.Annotations[etcdv1.UpgradeInProgressAnnotation]).To(BeEmpty())
+}
+
 // newClusterWithExternalEtcd return a CAPI cluster object with managed external etcd ref
 func newClusterWithExternalEtcd() *clusterv1.Cluster {
 	return &clusterv1.Cluster{
@@ -541,4 +648,46 @@ func newEtcdMachine(etcdadmCluster *etcdv1.EtcdadmCluster, cluster *clusterv1.Cl
 			},
 		},
 	}
+}
+
+// setupEtcdScalingTest scaffolds resources, clients and mocks to test EtcdCluster scaling.
+func setupEtcdScalingTest(t *testing.T) (*etcdadmClusterTest, client.WithWatch, *mocks.MockEtcdClient, *http.Client) {
+	controller := gomock.NewController(t)
+	mockEtcd := mocks.NewMockEtcdClient(controller)
+
+	etcdTest := newEtcdadmClusterTest(3)
+	etcdTest.buildClusterWithExternalEtcd()
+	etcdTest.etcdadmCluster.Status.CreationComplete = true
+
+	// CAPI machine controller has set status.Initialized to true, after the first etcd Machine is created, and after creating the Secret containing etcd init address
+	etcdTest.etcdadmCluster.Status.Initialized = true
+	etcdTest.etcdadmCluster.Annotations = map[string]string{
+		etcdv1.UpgradeInProgressAnnotation: "upgrading",
+	}
+	etcdTest.etcdadmCluster.Status.InitMachineAddress = etcdTest.machines[0].Status.Addresses[0].Address
+	etcdTest.newInitSecret()
+
+	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
+	conditions.MarkTrue(etcdTest.etcdadmCluster, etcdv1.InitializedCondition)
+
+	objects := []client.Object{
+		infraTemplate.DeepCopy(),
+		etcdTest.cluster,
+		etcdTest.etcdadmCluster,
+		etcdTest.initSecret,
+	}
+
+	for _, machine := range etcdTest.machines {
+		objects = append(objects, machine)
+	}
+
+	fakeKubernetesClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+
+	mockHttpClient := &http.Client{
+		Transport: RoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return getHealthyEtcdResponse(), nil
+		}),
+	}
+
+	return etcdTest, fakeKubernetesClient, mockEtcd, mockHttpClient
 }
