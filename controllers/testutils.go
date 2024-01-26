@@ -19,7 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/storage/names"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -148,7 +148,7 @@ func (e *etcdadmClusterTest) newEtcdadmCluster(cluster *clusterv1.Cluster) *etcd
 					Version: etcdVersion,
 				},
 			},
-			Replicas: pointer.Int32(int32(e.replicas)),
+			Replicas: ptr.To(int32(e.replicas)),
 			InfrastructureTemplate: corev1.ObjectReference{
 				Kind:       infraTemplate.GetKind(),
 				APIVersion: infraTemplate.GetAPIVersion(),

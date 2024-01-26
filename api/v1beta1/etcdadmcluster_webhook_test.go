@@ -21,7 +21,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestValidateCreate(t *testing.T) {
@@ -32,7 +32,7 @@ func TestValidateCreate(t *testing.T) {
 		"valid etcdadm cluster": {
 			in: &EtcdadmCluster{
 				Spec: EtcdadmClusterSpec{
-					Replicas: pointer.Int32(int32(3)),
+					Replicas: ptr.To(int32(3)),
 				},
 				Status: EtcdadmClusterStatus{},
 			},
@@ -48,7 +48,7 @@ func TestValidateCreate(t *testing.T) {
 		"zero replicas": {
 			in: &EtcdadmCluster{
 				Spec: EtcdadmClusterSpec{
-					Replicas: pointer.Int32(int32(0)),
+					Replicas: ptr.To(int32(0)),
 				},
 				Status: EtcdadmClusterStatus{},
 			},
@@ -57,7 +57,7 @@ func TestValidateCreate(t *testing.T) {
 		"even replicas": {
 			in: &EtcdadmCluster{
 				Spec: EtcdadmClusterSpec{
-					Replicas: pointer.Int32(int32(2)),
+					Replicas: ptr.To(int32(2)),
 				},
 				Status: EtcdadmClusterStatus{},
 			},
@@ -66,7 +66,7 @@ func TestValidateCreate(t *testing.T) {
 		"mismatched namespace": {
 			in: &EtcdadmCluster{
 				Spec: EtcdadmClusterSpec{
-					Replicas: pointer.Int32(int32(3)),
+					Replicas: ptr.To(int32(3)),
 					InfrastructureTemplate: corev1.ObjectReference{
 						Namespace: "fail",
 					},
@@ -79,7 +79,7 @@ func TestValidateCreate(t *testing.T) {
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
 			g := NewWithT(t)
-			err := tt.in.ValidateCreate()
+			_, err := tt.in.ValidateCreate()
 			if tt.expectErr == "" {
 				g.Expect(err).To(BeNil())
 			} else {
@@ -97,13 +97,13 @@ func TestValidateUpdate(t *testing.T) {
 		"valid scale up": {
 			oldConf: &EtcdadmCluster{
 				Spec: EtcdadmClusterSpec{
-					Replicas: pointer.Int32(int32(3)),
+					Replicas: ptr.To(int32(3)),
 				},
 				Status: EtcdadmClusterStatus{},
 			},
 			newConf: &EtcdadmCluster{
 				Spec: EtcdadmClusterSpec{
-					Replicas: pointer.Int32(int32(5)),
+					Replicas: ptr.To(int32(5)),
 				},
 				Status: EtcdadmClusterStatus{},
 			},
@@ -112,13 +112,13 @@ func TestValidateUpdate(t *testing.T) {
 		"valid scale down": {
 			oldConf: &EtcdadmCluster{
 				Spec: EtcdadmClusterSpec{
-					Replicas: pointer.Int32(int32(3)),
+					Replicas: ptr.To(int32(3)),
 				},
 				Status: EtcdadmClusterStatus{},
 			},
 			newConf: &EtcdadmCluster{
 				Spec: EtcdadmClusterSpec{
-					Replicas: pointer.Int32(int32(1)),
+					Replicas: ptr.To(int32(1)),
 				},
 				Status: EtcdadmClusterStatus{},
 			},
@@ -127,13 +127,13 @@ func TestValidateUpdate(t *testing.T) {
 		"zero replicas": {
 			oldConf: &EtcdadmCluster{
 				Spec: EtcdadmClusterSpec{
-					Replicas: pointer.Int32(int32(3)),
+					Replicas: ptr.To(int32(3)),
 				},
 				Status: EtcdadmClusterStatus{},
 			},
 			newConf: &EtcdadmCluster{
 				Spec: EtcdadmClusterSpec{
-					Replicas: pointer.Int32(int32(0)),
+					Replicas: ptr.To(int32(0)),
 				},
 				Status: EtcdadmClusterStatus{},
 			},
@@ -143,7 +143,7 @@ func TestValidateUpdate(t *testing.T) {
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
 			g := NewWithT(t)
-			err := tt.newConf.ValidateUpdate(tt.oldConf)
+			_, err := tt.newConf.ValidateUpdate(tt.oldConf)
 			if tt.expectErr != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.expectErr)))
 			} else {

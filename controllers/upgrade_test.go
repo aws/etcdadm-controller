@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/cluster-api/util/collections"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -66,7 +66,7 @@ func TestEtcdadmClusterReconciler_upgradeEtcdClusterM_MachineIsRemovedFromOwnedM
 			}
 
 			etcdCluster := baseEtcdadCluster.DeepCopy()
-			etcdCluster.Spec.Replicas = pointer.Int32(tc.desiredReplicas)
+			etcdCluster.Spec.Replicas = ptr.To(int32(tc.desiredReplicas))
 			etcdPlane := &EtcdPlane{
 				Cluster:  cluster,
 				EC:       etcdCluster,

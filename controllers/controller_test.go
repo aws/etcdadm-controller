@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"k8s.io/apiserver/pkg/storage/names"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cluster-api/util/conditions"
 
 	etcdbootstrapv1 "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
@@ -94,7 +94,7 @@ func TestClusterToEtcdadmCluster(t *testing.T) {
 		Log:    log.Log,
 	}
 
-	got := r.ClusterToEtcdadmCluster(cluster)
+	got := r.ClusterToEtcdadmCluster(context.Background(), cluster)
 
 	g.Expect(got).To(Equal(expectedResult))
 }
@@ -119,7 +119,11 @@ func TestReconcileNoClusterOwnerRef(t *testing.T) {
 	objects := []client.Object{
 		etcdadmCluster,
 	}
-	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(setupScheme()).
+		WithObjects(objects...).
+		WithStatusSubresource(&etcdv1.EtcdadmCluster{}).
+		Build()
 
 	r := &EtcdadmClusterReconciler{
 		Client: fakeClient,
@@ -243,7 +247,11 @@ func TestReconcileInitializeEtcdCluster(t *testing.T) {
 		infraTemplate.DeepCopy(),
 	}
 
-	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(setupScheme()).
+		WithObjects(objects...).
+		WithStatusSubresource(&etcdv1.EtcdadmCluster{}).
+		Build()
 
 	r := &EtcdadmClusterReconciler{
 		Client:         fakeClient,
@@ -284,7 +292,11 @@ func TestReconcile_EtcdClusterNotInitialized(t *testing.T) {
 		infraTemplate.DeepCopy(),
 		machine,
 	}
-	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(setupScheme()).
+		WithObjects(objects...).
+		WithStatusSubresource(&etcdv1.EtcdadmCluster{}).
+		Build()
 
 	r := &EtcdadmClusterReconciler{
 		Client:         fakeClient,
@@ -317,7 +329,11 @@ func TestReconcile_EtcdClusterIsInitialized(t *testing.T) {
 		infraTemplate.DeepCopy(),
 		machine,
 	}
-	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(setupScheme()).
+		WithObjects(objects...).
+		WithStatusSubresource(&etcdv1.EtcdadmCluster{}).
+		Build()
 
 	r := &EtcdadmClusterReconciler{
 		Client:         fakeClient,
@@ -350,7 +366,11 @@ func TestReconcileScaleUpEtcdCluster(t *testing.T) {
 		infraTemplate.DeepCopy(),
 		machine,
 	}
-	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(setupScheme()).
+		WithObjects(objects...).
+		WithStatusSubresource(&etcdv1.EtcdadmCluster{}).
+		Build()
 
 	r := &EtcdadmClusterReconciler{
 		Client:         fakeClient,
@@ -390,7 +410,11 @@ func TestReconcileDeleteOutdatedMachines(t *testing.T) {
 		ownedMachine,
 		notOwnedMachine,
 	}
-	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(setupScheme()).
+		WithObjects(objects...).
+		WithStatusSubresource(&etcdv1.EtcdadmCluster{}).
+		Build()
 
 	r := &EtcdadmClusterReconciler{
 		Client:         fakeClient,
@@ -413,7 +437,7 @@ func TestReconcileNeedsRollOutEtcdCluster(t *testing.T) {
 
 	// CAPI machine controller has set status.Initialized to true, after the first etcd Machine is created, and after creating the Secret containing etcd init address
 	etcdadmCluster.Status.Initialized = true
-	etcdadmCluster.Spec.Replicas = pointer.Int32(int32(1))
+	etcdadmCluster.Spec.Replicas = ptr.To(int32(1))
 
 	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
 	conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
@@ -446,7 +470,11 @@ func TestReconcileNeedsRollOutEtcdCluster(t *testing.T) {
 		machine,
 		etcdadmConfig,
 	}
-	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(setupScheme()).
+		WithObjects(objects...).
+		WithStatusSubresource(&etcdv1.EtcdadmCluster{}).
+		Build()
 
 	r := &EtcdadmClusterReconciler{
 		Client:         fakeClient,
@@ -479,7 +507,7 @@ func TestReconcileScaleEtcdClusterUpgradeDone(t *testing.T) {
 	machine2 := newEtcdMachine(etcdadmCluster, cluster)
 	machine3 := newEtcdMachine(etcdadmCluster, cluster)
 
-	etcdadmCluster.Spec.Replicas = pointer.Int32(int32(5))
+	etcdadmCluster.Spec.Replicas = ptr.To(int32(5))
 	machine4 := newEtcdMachine(etcdadmCluster, cluster)
 	machine5 := newEtcdMachine(etcdadmCluster, cluster)
 
@@ -494,7 +522,11 @@ func TestReconcileScaleEtcdClusterUpgradeDone(t *testing.T) {
 		machine5,
 	}
 
-	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(setupScheme()).
+		WithObjects(objects...).
+		WithStatusSubresource(&etcdv1.EtcdadmCluster{}).
+		Build()
 
 	r := &EtcdadmClusterReconciler{
 		Client:         fakeClient,
@@ -546,7 +578,7 @@ func TestReconcileScaleDownEtcdCluster(t *testing.T) {
 	g.Expect(upgradeInProgress).To(BeFalse())
 
 	// update desired replicas to be 1
-	etcdTest.etcdadmCluster.Spec.Replicas = pointer.Int32(int32(1))
+	etcdTest.etcdadmCluster.Spec.Replicas = ptr.To(int32(1))
 	g.Expect(fakeKubernetesClient.Update(ctx, etcdTest.etcdadmCluster)).To(Succeed())
 
 	g.Expect(fakeKubernetesClient.Get(ctx, util.ObjectKey(etcdTest.etcdadmCluster), etcdTest.etcdadmCluster)).To(Succeed())
@@ -598,6 +630,10 @@ func newClusterWithExternalEtcd() *clusterv1.Cluster {
 
 func newEtcdadmCluster(cluster *clusterv1.Cluster) *etcdv1.EtcdadmCluster {
 	return &etcdv1.EtcdadmCluster{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "EtcdadmCluster",
+			APIVersion: etcdv1.GroupVersion.String(),
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: testNamespace,
 			Name:      testEtcdadmClusterName,
@@ -617,7 +653,7 @@ func newEtcdadmCluster(cluster *clusterv1.Cluster) *etcdv1.EtcdadmCluster {
 					Version: "v3.4.9",
 				},
 			},
-			Replicas: pointer.Int32(int32(3)),
+			Replicas: ptr.To(int32(3)),
 			InfrastructureTemplate: corev1.ObjectReference{
 				Kind:       infraTemplate.GetKind(),
 				APIVersion: infraTemplate.GetAPIVersion(),
@@ -681,7 +717,11 @@ func setupEtcdScalingTest(t *testing.T) (*etcdadmClusterTest, client.WithWatch, 
 		objects = append(objects, machine)
 	}
 
-	fakeKubernetesClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+	fakeKubernetesClient := fake.NewClientBuilder().
+		WithScheme(setupScheme()).
+		WithObjects(objects...).
+		WithStatusSubresource(&etcdv1.EtcdadmCluster{}).
+		Build()
 
 	mockHttpClient := &http.Client{
 		Transport: RoundTripperFunc(func(req *http.Request) (*http.Response, error) {

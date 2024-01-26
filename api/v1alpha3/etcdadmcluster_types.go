@@ -18,9 +18,9 @@ package v1alpha3
 
 import (
 	etcdbp "github.com/aws/etcdadm-bootstrap-provider/api/v1alpha3"
+	clusterv1 "github.com/aws/etcdadm-controller/internal/thirdparty/api/v1alpha3"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
 )
 
 const (
