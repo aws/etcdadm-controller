@@ -87,7 +87,7 @@ func (r *EtcdadmClusterReconciler) SetupWithManager(ctx context.Context, mgr ctr
 	}
 
 	err = c.Watch(
-		&source.Kind{Type: &clusterv1.Cluster{}},
+		source.Kind(mgr.GetCache(), &clusterv1.Cluster{}),
 		handler.EnqueueRequestsFromMapFunc(r.ClusterToEtcdadmCluster),
 		predicates.ClusterUnpausedAndInfrastructureReady(r.Log),
 	)
@@ -427,7 +427,7 @@ func (r *EtcdadmClusterReconciler) reconcileDelete(ctx context.Context, etcdClus
 
 // ClusterToEtcdadmCluster is a handler.ToRequestsFunc to be used to enqueue requests for reconciliation
 // for EtcdadmCluster based on updates to a Cluster.
-func (r *EtcdadmClusterReconciler) ClusterToEtcdadmCluster(o client.Object) []ctrl.Request {
+func (r *EtcdadmClusterReconciler) ClusterToEtcdadmCluster(ctx context.Context, o client.Object) []ctrl.Request {
 	c, ok := o.(*clusterv1.Cluster)
 	if !ok {
 		panic(fmt.Sprintf("Expected a Cluster but got a %T", o))

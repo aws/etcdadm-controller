@@ -1,6 +1,6 @@
 package v1alpha3
 
-import clusterv1 "sigs.k8s.io/cluster-api/api/v1alpha3"
+import clusterv1 "github.com/aws/etcdadm-controller/internal/thirdparty/api/v1alpha3"
 
 const (
 	// EtcdMachinesSpecUpToDateCondition documents that the spec of the machines controlled by the EtcdadmCluster

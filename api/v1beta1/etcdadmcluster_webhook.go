@@ -23,6 +23,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // log is for logging in this package.
@@ -57,33 +58,33 @@ func (r *EtcdadmCluster) Default() {
 }
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *EtcdadmCluster) ValidateCreate() error {
+func (r *EtcdadmCluster) ValidateCreate() (admission.Warnings, error) {
 	etcdadmclusterlog.Info("validate create", "name", r.Name)
 
 	allErrs := r.validateCommon()
 	if len(allErrs) > 0 {
-		return apierrors.NewInvalid(GroupVersion.WithKind("EtcdadmCluster").GroupKind(), r.Name, allErrs)
+		return nil, apierrors.NewInvalid(GroupVersion.WithKind("EtcdadmCluster").GroupKind(), r.Name, allErrs)
 	}
-	return nil
+	return nil, nil
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *EtcdadmCluster) ValidateUpdate(old runtime.Object) error {
+func (r *EtcdadmCluster) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
 	etcdadmclusterlog.Info("validate update", "name", r.Name)
 
 	allErrs := r.validateCommon()
 	if len(allErrs) > 0 {
-		return apierrors.NewInvalid(GroupVersion.WithKind("EtcdadmCluster").GroupKind(), r.Name, allErrs)
+		return nil, apierrors.NewInvalid(GroupVersion.WithKind("EtcdadmCluster").GroupKind(), r.Name, allErrs)
 	}
-	return nil
+	return nil, nil
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *EtcdadmCluster) ValidateDelete() error {
+func (r *EtcdadmCluster) ValidateDelete() (admission.Warnings, error) {
 	etcdadmclusterlog.Info("validate delete", "name", r.Name)
 
 	// TODO(user): fill in your validation logic upon object deletion.
-	return nil
+	return nil, nil
 }
 
 func (r *EtcdadmCluster) validateCommon() (allErrs field.ErrorList) {
