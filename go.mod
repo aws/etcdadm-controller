@@ -3,7 +3,7 @@ module github.com/aws/etcdadm-controller
 go 1.21
 
 require (
-	github.com/aws/etcdadm-bootstrap-provider v1.0.11
+	github.com/aws/etcdadm-bootstrap-provider v1.0.12
 	github.com/go-logr/logr v1.4.1
 	github.com/golang/mock v1.4.4
 	github.com/google/uuid v1.3.1
@@ -20,7 +20,7 @@ require (
 	k8s.io/klog/v2 v2.110.1
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 	sigs.k8s.io/cluster-api v1.6.0
-	sigs.k8s.io/controller-runtime v0.17.0
+	sigs.k8s.io/controller-runtime v0.16.5
 	sigs.k8s.io/etcdadm v0.1.5
 )
 
