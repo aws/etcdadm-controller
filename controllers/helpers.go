@@ -81,7 +81,6 @@ func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Co
 		ClusterName: cluster.Name,
 		Labels:      EtcdLabelsForCluster(cluster.Name, ec.Name),
 	})
-
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("error cloning infrastructure template for etcd machine: %v", err)
 	}
@@ -158,24 +157,34 @@ func (r *EtcdadmClusterReconciler) generateMachine(ctx context.Context, ec *etcd
 }
 
 func getEtcdMachineAddress(machine *clusterv1.Machine) string {
-	var foundAddress bool
-	var machineAddress string
+	var internalIP, internalDNS, externalIP, externalDNS string
+
+	// Check and record all different address types set for the machine and return later according to precedence.
 	for _, address := range machine.Status.Addresses {
-		if address.Type == clusterv1.MachineInternalIP || address.Type == clusterv1.MachineInternalDNS {
-			machineAddress = address.Address
-			foundAddress = true
-			break
+		switch address.Type {
+		case clusterv1.MachineInternalIP:
+			internalIP = address.Address
+		case clusterv1.MachineInternalDNS:
+			internalDNS = address.Address
+		case clusterv1.MachineExternalIP:
+			externalIP = address.Address
+		case clusterv1.MachineExternalDNS:
+			externalDNS = address.Address
 		}
 	}
-	for _, address := range machine.Status.Addresses {
-		if !foundAddress {
-			if address.Type == clusterv1.MachineExternalIP || address.Type == clusterv1.MachineExternalDNS {
-				machineAddress = address.Address
-				break
-			}
-		}
+
+	// The order of these checks determines the precedence of the address to use
+	if externalDNS != "" {
+		return externalDNS
+	} else if externalIP != "" {
+		return externalIP
+	} else if internalDNS != "" {
+		return internalDNS
+	} else if internalIP != "" {
+		return internalIP
 	}
-	return machineAddress
+
+	return ""
 }
 
 func getMemberClientURL(address string) string {
