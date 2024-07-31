@@ -169,6 +169,9 @@ func (r *EtcdadmClusterReconciler) getClientCerts(ctx context.Context, cluster *
 		return tls.Certificate{}, err
 	}
 	if clientCertKey := clientCert.GetByPurpose(secret.APIServerEtcdClient); clientCertKey != nil {
+		if clientCertKey.KeyPair == nil {
+			return tls.Certificate{}, fmt.Errorf("client cert key pair not found for cluster")
+		}
 		return tls.X509KeyPair(clientCertKey.KeyPair.Cert, clientCertKey.KeyPair.Key)
 	}
 	return tls.Certificate{}, fmt.Errorf("nil returned from getting etcd CA certificate by purpose %s", secret.APIServerEtcdClient)
