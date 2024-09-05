@@ -28,13 +28,19 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 
 	desiredReplicas := *ec.Spec.Replicas
 
-	ec.Status.ReadyReplicas = int32(len(ownedMachines))
+	// Only consider a healthy machine as a ready replica
+	// This will prevent an owned machine being deleted due to a catastrophic event from being considered ready.
+	readyReplicas := int32(0)
+	for _, m := range ownedMachines {
+		if m.healthy() {
+			readyReplicas++
+		}
+	}
+	ec.Status.ReadyReplicas = readyReplicas
 
 	if !ec.DeletionTimestamp.IsZero() {
 		return nil
 	}
-
-	readyReplicas := ec.Status.ReadyReplicas
 
 	if readyReplicas < desiredReplicas {
 		conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleUpInProgressReason, clusterv1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
