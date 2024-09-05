@@ -60,6 +60,55 @@ func TestUpdateStatusResizeIncomplete(t *testing.T) {
 	g.Expect(conditions.IsTrue(etcdadmCluster, etcdv1.EtcdClusterResizeCompleted)).To(BeFalse())
 }
 
+func TestUpdateStatusMachineUnhealthy(t *testing.T) {
+	g := NewWithT(t)
+
+	cluster := newClusterWithExternalEtcd()
+	etcdadmCluster := newEtcdadmCluster(cluster)
+
+	machine1 := newEtcdMachine(etcdadmCluster, cluster)
+	machine2 := newEtcdMachine(etcdadmCluster, cluster)
+
+	etcdMachine1 := etcdMachine{
+		Machine:     machine1,
+		endpoint:    "1.1.1.1",
+		listening:   true,
+		healthError: nil,
+	}
+	etcdMachine2 := etcdMachine{
+		Machine:     machine2,
+		endpoint:    "1.1.1.1",
+		listening:   false,
+		healthError: nil,
+	}
+
+	ownedMachines := map[string]etcdMachine{
+		"machine1": etcdMachine1,
+		"machine2": etcdMachine2,
+	}
+
+	objects := []client.Object{
+		cluster,
+		etcdadmCluster,
+		infraTemplate.DeepCopy(),
+		machine1,
+		machine2,
+	}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
+
+	r := &EtcdadmClusterReconciler{
+		Client:         fakeClient,
+		uncachedClient: fakeClient,
+		Log:            log.Log,
+	}
+
+	err := r.updateStatus(ctx, etcdadmCluster, cluster, ownedMachines)
+	g.Expect(etcdadmCluster.Status.ReadyReplicas).To(Equal(int32(1)))
+	g.Expect(err).NotTo(HaveOccurred())
+	g.Expect(conditions.IsTrue(etcdadmCluster, etcdv1.EtcdClusterResizeCompleted)).To(BeFalse())
+}
+
 func TestUpdateStatusResizeComplete(t *testing.T) {
 	g := NewWithT(t)
 
