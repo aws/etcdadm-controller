@@ -17,6 +17,9 @@ limitations under the License.
 package v1beta1
 
 import (
+	"context"
+	"fmt"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -32,56 +35,80 @@ var etcdadmclusterlog = logf.Log.WithName("etcdadmcluster-resource")
 func (r *EtcdadmCluster) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
+		WithDefaulter(r).
+		WithValidator(r).
 		Complete()
 }
 
 // +kubebuilder:webhook:verbs=create;update,path=/mutate-etcdcluster-cluster-x-k8s-io-v1beta1-etcdadmcluster,mutating=true,failurePolicy=fail,groups=etcdcluster.cluster.x-k8s.io,resources=etcdadmclusters,versions=v1beta1,name=metcdadmcluster.kb.io,sideEffects=None,admissionReviewVersions=v1;v1beta1
 
-var _ webhook.Defaulter = &EtcdadmCluster{}
+var _ webhook.CustomDefaulter = &EtcdadmCluster{}
 
 // +kubebuilder:webhook:verbs=create;update,path=/validate-etcdcluster-cluster-x-k8s-io-v1beta1-etcdadmcluster,mutating=false,failurePolicy=fail,groups=etcdcluster.cluster.x-k8s.io,resources=etcdadmclusters,versions=v1beta1,name=vetcdadmcluster.kb.io,sideEffects=None,admissionReviewVersions=v1;v1beta1
 
-var _ webhook.Validator = &EtcdadmCluster{}
+var _ webhook.CustomValidator = &EtcdadmCluster{}
 
-// Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *EtcdadmCluster) Default() {
-	etcdadmclusterlog.Info("default", "name", r.Name)
+// Default implements webhook.CustomDefaulter so a webhook will be registered for the type
+func (r *EtcdadmCluster) Default(_ context.Context, obj runtime.Object) error {
+	etcdadmCluster, ok := obj.(*EtcdadmCluster)
+	if !ok {
+		return fmt.Errorf("expected an EtcdadmCluster but got %T", obj)
+	}
 
-	if r.Spec.Replicas == nil {
+	etcdadmclusterlog.Info("default", "name", etcdadmCluster.Name)
+
+	if etcdadmCluster.Spec.Replicas == nil {
 		replicas := int32(1)
-		r.Spec.Replicas = &replicas
+		etcdadmCluster.Spec.Replicas = &replicas
 	}
 
-	if r.Spec.InfrastructureTemplate.Namespace == "" {
-		r.Spec.InfrastructureTemplate.Namespace = r.Namespace
+	if etcdadmCluster.Spec.InfrastructureTemplate.Namespace == "" {
+		etcdadmCluster.Spec.InfrastructureTemplate.Namespace = etcdadmCluster.Namespace
 	}
+
+	return nil
 }
 
-// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *EtcdadmCluster) ValidateCreate() (admission.Warnings, error) {
-	etcdadmclusterlog.Info("validate create", "name", r.Name)
+// ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type
+func (r *EtcdadmCluster) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
+	etcdadmCluster, ok := obj.(*EtcdadmCluster)
+	if !ok {
+		return nil, fmt.Errorf("expected an EtcdadmCluster but got %T", obj)
+	}
 
-	allErrs := r.validateCommon()
+	etcdadmclusterlog.Info("validate create", "name", etcdadmCluster.Name)
+
+	allErrs := etcdadmCluster.validateCommon()
 	if len(allErrs) > 0 {
-		return nil, apierrors.NewInvalid(GroupVersion.WithKind("EtcdadmCluster").GroupKind(), r.Name, allErrs)
+		return nil, apierrors.NewInvalid(GroupVersion.WithKind("EtcdadmCluster").GroupKind(), etcdadmCluster.Name, allErrs)
 	}
 	return nil, nil
 }
 
-// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *EtcdadmCluster) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	etcdadmclusterlog.Info("validate update", "name", r.Name)
+// ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type
+func (r *EtcdadmCluster) ValidateUpdate(_ context.Context, obj, old runtime.Object) (admission.Warnings, error) {
+	etcdadmCluster, ok := obj.(*EtcdadmCluster)
+	if !ok {
+		return nil, fmt.Errorf("expected an EtcdadmCluster but got %T", obj)
+	}
 
-	allErrs := r.validateCommon()
+	etcdadmclusterlog.Info("validate update", "name", etcdadmCluster.Name)
+
+	allErrs := etcdadmCluster.validateCommon()
 	if len(allErrs) > 0 {
-		return nil, apierrors.NewInvalid(GroupVersion.WithKind("EtcdadmCluster").GroupKind(), r.Name, allErrs)
+		return nil, apierrors.NewInvalid(GroupVersion.WithKind("EtcdadmCluster").GroupKind(), etcdadmCluster.Name, allErrs)
 	}
 	return nil, nil
 }
 
-// ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *EtcdadmCluster) ValidateDelete() (admission.Warnings, error) {
-	etcdadmclusterlog.Info("validate delete", "name", r.Name)
+// ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type
+func (r *EtcdadmCluster) ValidateDelete(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
+	etcdadmCluster, ok := obj.(*EtcdadmCluster)
+	if !ok {
+		return nil, fmt.Errorf("expected an EtcdadmCluster but got %T", obj)
+	}
+
+	etcdadmclusterlog.Info("validate delete", "name", etcdadmCluster.Name)
 
 	// TODO(user): fill in your validation logic upon object deletion.
 	return nil, nil

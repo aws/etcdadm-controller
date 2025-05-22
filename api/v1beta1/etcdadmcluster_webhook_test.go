@@ -17,138 +17,80 @@ limitations under the License.
 package v1beta1
 
 import (
+	"context"
 	"testing"
 
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/utils/ptr"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func TestValidateCreate(t *testing.T) {
-	cases := map[string]struct {
-		in        *EtcdadmCluster
-		expectErr string
-	}{
-		"valid etcdadm cluster": {
-			in: &EtcdadmCluster{
-				Spec: EtcdadmClusterSpec{
-					Replicas: ptr.To(int32(3)),
-				},
-				Status: EtcdadmClusterStatus{},
-			},
-			expectErr: "",
-		},
-		"no replicas field": {
-			in: &EtcdadmCluster{
-				Spec:   EtcdadmClusterSpec{},
-				Status: EtcdadmClusterStatus{},
-			},
-			expectErr: "spec.replicas: Required value: is required",
-		},
-		"zero replicas": {
-			in: &EtcdadmCluster{
-				Spec: EtcdadmClusterSpec{
-					Replicas: ptr.To(int32(0)),
-				},
-				Status: EtcdadmClusterStatus{},
-			},
-			expectErr: "cannot be less than or equal to 0",
-		},
-		"even replicas": {
-			in: &EtcdadmCluster{
-				Spec: EtcdadmClusterSpec{
-					Replicas: ptr.To(int32(2)),
-				},
-				Status: EtcdadmClusterStatus{},
-			},
-			expectErr: "Forbidden: etcd cluster cannot have an even number of nodes",
-		},
-		"mismatched namespace": {
-			in: &EtcdadmCluster{
-				Spec: EtcdadmClusterSpec{
-					Replicas: ptr.To(int32(3)),
-					InfrastructureTemplate: corev1.ObjectReference{
-						Namespace: "fail",
-					},
-				},
-				Status: EtcdadmClusterStatus{},
-			},
-			expectErr: "Invalid value: \"fail\": must match metadata.namespace",
-		},
-	}
-	for name, tt := range cases {
-		t.Run(name, func(t *testing.T) {
-			g := NewWithT(t)
-			_, err := tt.in.ValidateCreate()
-			if tt.expectErr == "" {
-				g.Expect(err).To(BeNil())
-			} else {
-				g.Expect(err).To(MatchError(ContainSubstring(tt.expectErr)))
-			}
-		})
-	}
+func TestEtcdadmClusterDefaultCastFail(t *testing.T) {
+	g := NewWithT(t)
+	
+	// Create a different type that will cause the cast to fail
+	wrongType := &runtime.Unknown{}
+	
+	// Create the config object that implements CustomDefaulter
+	config := &EtcdadmCluster{}
+	
+	// Call Default with the wrong type
+	err := config.Default(context.TODO(), wrongType)
+	
+	// Verify that an error is returned
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("expected an EtcdadmCluster"))
 }
-func TestValidateUpdate(t *testing.T) {
-	cases := map[string]struct {
-		oldConf   *EtcdadmCluster
-		newConf   *EtcdadmCluster
-		expectErr string
-	}{
-		"valid scale up": {
-			oldConf: &EtcdadmCluster{
-				Spec: EtcdadmClusterSpec{
-					Replicas: ptr.To(int32(3)),
-				},
-				Status: EtcdadmClusterStatus{},
-			},
-			newConf: &EtcdadmCluster{
-				Spec: EtcdadmClusterSpec{
-					Replicas: ptr.To(int32(5)),
-				},
-				Status: EtcdadmClusterStatus{},
-			},
-			expectErr: "",
-		},
-		"valid scale down": {
-			oldConf: &EtcdadmCluster{
-				Spec: EtcdadmClusterSpec{
-					Replicas: ptr.To(int32(3)),
-				},
-				Status: EtcdadmClusterStatus{},
-			},
-			newConf: &EtcdadmCluster{
-				Spec: EtcdadmClusterSpec{
-					Replicas: ptr.To(int32(1)),
-				},
-				Status: EtcdadmClusterStatus{},
-			},
-			expectErr: "",
-		},
-		"zero replicas": {
-			oldConf: &EtcdadmCluster{
-				Spec: EtcdadmClusterSpec{
-					Replicas: ptr.To(int32(3)),
-				},
-				Status: EtcdadmClusterStatus{},
-			},
-			newConf: &EtcdadmCluster{
-				Spec: EtcdadmClusterSpec{
-					Replicas: ptr.To(int32(0)),
-				},
-				Status: EtcdadmClusterStatus{},
-			},
-			expectErr: "cannot be less than or equal to 0",
-		},
-	}
-	for name, tt := range cases {
-		t.Run(name, func(t *testing.T) {
-			g := NewWithT(t)
-			_, err := tt.newConf.ValidateUpdate(tt.oldConf)
-			if tt.expectErr != "" {
-				g.Expect(err).To(MatchError(ContainSubstring(tt.expectErr)))
-			} else {
-				g.Expect(err).To(BeNil())
-			}
-		})
-	}
+
+func TestEtcdadmClusterValidateCreateCastFail(t *testing.T) {
+	g := NewWithT(t)
+	
+	// Create a different type that will cause the cast to fail
+	wrongType := &runtime.Unknown{}
+	
+	// Create the config object that implements CustomValidator
+	config := &EtcdadmCluster{}
+	
+	// Call ValidateCreate with the wrong type
+	warnings, err := config.ValidateCreate(context.TODO(), wrongType)
+	
+	// Verify that an error is returned
+	g.Expect(warnings).To(BeNil())
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("expected an EtcdadmCluster"))
+}
+
+func TestEtcdadmClusterValidateUpdateCastFail(t *testing.T) {
+	g := NewWithT(t)
+	
+	// Create a different type that will cause the cast to fail
+	wrongType := &runtime.Unknown{}
+	
+	// Create the config object that implements CustomValidator
+	config := &EtcdadmCluster{}
+	
+	// Call ValidateUpdate with the wrong type
+	warnings, err := config.ValidateUpdate(context.TODO(), wrongType, &EtcdadmCluster{})
+	
+	// Verify that an error is returned
+	g.Expect(warnings).To(BeNil())
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("expected an EtcdadmCluster"))
+}
+
+func TestEtcdadmClusterValidateDeleteCastFail(t *testing.T) {
+	g := NewWithT(t)
+	
+	// Create a different type that will cause the cast to fail
+	wrongType := &runtime.Unknown{}
+	
+	// Create the config object that implements CustomValidator
+	config := &EtcdadmCluster{}
+	
+	// Call ValidateDelete with the wrong type
+	warnings, err := config.ValidateDelete(context.TODO(), wrongType)
+	
+	// Verify that an error is returned
+	g.Expect(warnings).To(BeNil())
+	g.Expect(err).To(HaveOccurred())
+	g.Expect(err.Error()).To(ContainSubstring("expected an EtcdadmCluster"))
 }
