@@ -1,4 +1,49 @@
+version: "2"
 run:
   timeout: 10m
-  skip-dirs:
-    - "api/v1alpha3"
+linters:
+  enable:
+    - gocyclo
+    - godot
+    - nakedret
+    - revive
+  settings:
+    gocyclo:
+      min-complexity: 10
+    godot:
+      exclude:
+        - (?i)^\s*todo
+      period: true
+  exclusions:
+    generated: lax
+    presets:
+      - common-false-positives
+      - std-error-handling
+    paths:
+      - zz_generated.*\.go$
+      - .*/mocks
+      - internal/aws-sdk-go-v2
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gci
+    - gofumpt
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/aws/etcdadm-controller)
+      custom-order: true
+  exclusions:
+    generated: lax
+    paths:
+      - zz_generated.*\.go$
+      - .*/mocks
+      - internal/aws-sdk-go-v2
+      - builtin$
+      - examples$
