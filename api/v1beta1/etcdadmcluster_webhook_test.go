@@ -69,7 +69,7 @@ func TestEtcdadmClusterValidateUpdateCastFail(t *testing.T) {
 	config := &EtcdadmCluster{}
 	
 	// Call ValidateUpdate with the wrong type
-	warnings, err := config.ValidateUpdate(context.TODO(), wrongType, &EtcdadmCluster{})
+	warnings, err := config.ValidateUpdate(context.TODO(), &EtcdadmCluster{}, wrongType)
 	
 	// Verify that an error is returned
 	g.Expect(warnings).To(BeNil())
