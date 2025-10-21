@@ -12,9 +12,9 @@ import (
 	"github.com/pkg/errors"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util/collections"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/etcdadm/constants"
 )
@@ -26,7 +26,7 @@ func (r *EtcdadmClusterReconciler) intializeEtcdCluster(ctx context.Context, ec 
 		r.Log.Error(err, "error generating etcd CA certs")
 		return ctrl.Result{}, err
 	}
-	conditions.MarkTrue(ec, etcdv1.EtcdCertificatesAvailableCondition)
+	v1beta1conditions.MarkTrue(ec, etcdv1.EtcdCertificatesAvailableCondition)
 	fd := ep.NextFailureDomainForScaleUp()
 	return r.cloneConfigsAndGenerateMachine(ctx, ec, cluster, fd)
 }

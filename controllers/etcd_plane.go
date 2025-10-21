@@ -7,9 +7,10 @@ import (
 	etcdbootstrapv1 "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util/collections"
 	"sigs.k8s.io/cluster-api/util/failuredomains"
@@ -79,23 +80,34 @@ func (ep *EtcdPlane) MachineWithDeleteAnnotation(machines collections.Machines) 
 // All functions related to failureDomains follow the same logic as KCP's failureDomain implementation, to leverage existing methods
 // FailureDomainWithMostMachines returns a fd which has the most machines on it.
 func (ep *EtcdPlane) FailureDomainWithMostMachines(machines collections.Machines) *string {
+	// Get failure domain IDs
+	failureDomainIDs := make([]string, 0, len(ep.FailureDomains()))
+	for _, fd := range ep.FailureDomains() {
+		failureDomainIDs = append(failureDomainIDs, fd.Name)
+	}
+
 	// See if there are any Machines that are not in currently defined failure domains first.
 	notInFailureDomains := machines.Filter(
-		collections.Not(collections.InFailureDomains(ep.FailureDomains().GetIDs()...)),
+		collections.Not(collections.InFailureDomains(failureDomainIDs...)),
 	)
 	if len(notInFailureDomains) > 0 {
 		// return the failure domain for the oldest Machine not in the current list of failure domains
 		// this could be either nil (no failure domain defined) or a failure domain that is no longer defined
 		// in the cluster status.
-		return notInFailureDomains.Oldest().Spec.FailureDomain
+		return &notInFailureDomains.Oldest().Spec.FailureDomain
 	}
-	return failuredomains.PickMost(ep.Cluster.Status.FailureDomains, ep.Machines, machines)
+	result := failuredomains.PickMost(context.TODO(), ep.Cluster.Status.FailureDomains, ep.Machines, machines)
+	return &result
 }
 
 // MachineInFailureDomainWithMostMachines returns the first matching failure domain with machines that has the most control-plane machines on it.
 func (ep *EtcdPlane) MachineInFailureDomainWithMostMachines(machines collections.Machines) (*clusterv1.Machine, error) {
 	fd := ep.FailureDomainWithMostMachines(machines)
-	machinesInFailureDomain := machines.Filter(collections.InFailureDomains(fd))
+	var fdStr string
+	if fd != nil {
+		fdStr = *fd
+	}
+	machinesInFailureDomain := machines.Filter(collections.InFailureDomains(fdStr))
 	machineToMark := machinesInFailureDomain.Oldest()
 	if machineToMark == nil {
 		return nil, errors.New("failed to pick control plane Machine to mark for deletion")
@@ -108,13 +120,14 @@ func (ep *EtcdPlane) NextFailureDomainForScaleUp() *string {
 	if len(ep.Cluster.Status.FailureDomains) == 0 {
 		return nil
 	}
-	return failuredomains.PickFewest(ep.FailureDomains(), ep.UpToDateMachines())
+	result := failuredomains.PickFewest(context.TODO(), ep.FailureDomains(), ep.UpToDateMachines(), collections.Machines{})
+	return &result
 }
 
 // FailureDomains returns a slice of failure domain objects synced from the infrastructure provider into Cluster.Status.
-func (ep *EtcdPlane) FailureDomains() clusterv1.FailureDomains {
+func (ep *EtcdPlane) FailureDomains() []clusterv1.FailureDomain {
 	if ep.Cluster.Status.FailureDomains == nil {
-		return clusterv1.FailureDomains{}
+		return []clusterv1.FailureDomain{}
 	}
 	return ep.Cluster.Status.FailureDomains
 }
@@ -212,7 +225,16 @@ func MatchesTemplateClonedFrom(infraConfigs map[string]*unstructured.Unstructure
 func getInfraResources(ctx context.Context, cl client.Client, machines collections.Machines) (map[string]*unstructured.Unstructured, error) {
 	result := map[string]*unstructured.Unstructured{}
 	for _, m := range machines {
-		infraObj, err := external.Get(ctx, cl, &m.Spec.InfrastructureRef, m.Namespace)
+		// Convert ContractVersionedObjectReference to ObjectReference
+		// Use the APIGroup from the machine's InfrastructureRef and assume v1beta1 version
+		apiVersion := m.Spec.InfrastructureRef.APIGroup + "/v1beta1"
+		infraRef := &corev1.ObjectReference{
+			APIVersion: apiVersion,
+			Kind:       m.Spec.InfrastructureRef.Kind,
+			Name:       m.Spec.InfrastructureRef.Name,
+			Namespace:  m.Namespace,
+		}
+		infraObj, err := external.Get(ctx, cl, infraRef)
 		if err != nil {
 			if apierrors.IsNotFound(errors.Cause(err)) {
 				continue
@@ -229,7 +251,7 @@ func getEtcdadmConfigs(ctx context.Context, cl client.Client, machines collectio
 	result := map[string]*etcdbootstrapv1.EtcdadmConfig{}
 	for _, m := range machines {
 		bootstrapRef := m.Spec.Bootstrap.ConfigRef
-		if bootstrapRef == nil {
+		if !bootstrapRef.IsDefined() {
 			continue
 		}
 		machineConfig := &etcdbootstrapv1.EtcdadmConfig{}

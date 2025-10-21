@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"context"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -79,7 +80,8 @@ func TestValidateCreate(t *testing.T) {
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
 			g := NewWithT(t)
-			_, err := tt.in.ValidateCreate()
+			webhook := &EtcdadmCluster{}
+			_, err := webhook.ValidateCreate(context.Background(), tt.in)
 			if tt.expectErr == "" {
 				g.Expect(err).To(BeNil())
 			} else {
@@ -143,7 +145,8 @@ func TestValidateUpdate(t *testing.T) {
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
 			g := NewWithT(t)
-			_, err := tt.newConf.ValidateUpdate(tt.oldConf)
+			webhook := &EtcdadmCluster{}
+			_, err := webhook.ValidateUpdate(context.Background(), tt.oldConf, tt.newConf)
 			if tt.expectErr != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.expectErr)))
 			} else {

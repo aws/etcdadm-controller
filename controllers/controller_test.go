@@ -24,7 +24,7 @@ import (
 
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
 
 	etcdbootstrapv1 "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
@@ -35,7 +35,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -84,7 +85,7 @@ func TestClusterToEtcdadmCluster(t *testing.T) {
 	expectedResult := []ctrl.Request{
 		{
 			NamespacedName: client.ObjectKey{
-				Namespace: cluster.Spec.ManagedExternalEtcdRef.Namespace,
+				Namespace: cluster.Namespace,
 				Name:      cluster.Spec.ManagedExternalEtcdRef.Name},
 		},
 	}
@@ -143,7 +144,7 @@ func TestReconcilePaused(t *testing.T) {
 	g := NewWithT(t)
 
 	cluster := newClusterWithExternalEtcd()
-	cluster.Spec.Paused = true
+	cluster.Spec.Paused = ptr.To(true)
 
 	etcdadmCluster := newEtcdadmCluster(cluster)
 
@@ -165,7 +166,7 @@ func TestReconcilePaused(t *testing.T) {
 	g.Expect(machineList.Items).To(BeEmpty())
 
 	// Test: etcdcluster is paused and cluster is not
-	cluster.Spec.Paused = false
+	cluster.Spec.Paused = ptr.To(false)
 	etcdadmCluster.ObjectMeta.Annotations = map[string]string{}
 	etcdadmCluster.ObjectMeta.Annotations[clusterv1.PausedAnnotation] = "paused"
 	_, err = r.Reconcile(ctx, ctrl.Request{NamespacedName: util.ObjectKey(etcdadmCluster)})
@@ -177,7 +178,15 @@ func TestReconcileClusterInfrastructureNotReady(t *testing.T) {
 	g := NewWithT(t)
 
 	cluster := newClusterWithExternalEtcd()
-	cluster.Status.InfrastructureReady = false
+	cluster.Status = clusterv1.ClusterStatus{
+		Conditions: []metav1.Condition{
+			{
+				Type:   clusterv1.ClusterInfrastructureReadyCondition,
+				Status: metav1.ConditionFalse,
+				Reason: "NotReady",
+			},
+		},
+	}
 
 	etcdadmCluster := newEtcdadmCluster(cluster)
 	etcdadmCluster.ObjectMeta.Finalizers = []string{}
@@ -271,8 +280,8 @@ func TestReconcileInitializeEtcdCluster(t *testing.T) {
 
 	updatedEtcdadmCluster := &etcdv1.EtcdadmCluster{}
 	g.Expect(fakeClient.Get(ctx, util.ObjectKey(etcdadmCluster), updatedEtcdadmCluster)).To(Succeed())
-	g.Expect(conditions.IsFalse(updatedEtcdadmCluster, etcdv1.InitializedCondition)).To(BeTrue())
-	g.Expect(conditions.IsFalse(updatedEtcdadmCluster, etcdv1.EtcdEndpointsAvailable)).To(BeTrue())
+	g.Expect(v1beta1conditions.IsFalse(updatedEtcdadmCluster, etcdv1.InitializedCondition)).To(BeTrue())
+	g.Expect(v1beta1conditions.IsFalse(updatedEtcdadmCluster, etcdv1.EtcdEndpointsAvailable)).To(BeTrue())
 }
 
 func TestReconcile_EtcdClusterNotInitialized(t *testing.T) {
@@ -283,7 +292,7 @@ func TestReconcile_EtcdClusterNotInitialized(t *testing.T) {
 
 	// CAPI machine controller has not yet created the first etcd Machine, so it has not yet set Initialized to true
 	etcdadmCluster.Status.Initialized = false
-	conditions.MarkFalse(etcdadmCluster, etcdv1.InitializedCondition, etcdv1.WaitingForEtcdadmInitReason, clusterv1.ConditionSeverityInfo, "")
+	v1beta1conditions.MarkFalse(etcdadmCluster, etcdv1.InitializedCondition, etcdv1.WaitingForEtcdadmInitReason, clusterv1beta1.ConditionSeverityInfo, "")
 	machine := newEtcdMachine(etcdadmCluster, cluster)
 
 	objects := []client.Object{
@@ -308,7 +317,7 @@ func TestReconcile_EtcdClusterNotInitialized(t *testing.T) {
 
 	updatedEtcdadmCluster := &etcdv1.EtcdadmCluster{}
 	g.Expect(fakeClient.Get(ctx, util.ObjectKey(etcdadmCluster), updatedEtcdadmCluster)).To(Succeed())
-	g.Expect(conditions.IsTrue(updatedEtcdadmCluster, etcdv1.InitializedCondition)).To(BeFalse())
+	g.Expect(v1beta1conditions.IsTrue(updatedEtcdadmCluster, etcdv1.InitializedCondition)).To(BeFalse())
 }
 
 func TestReconcile_EtcdClusterIsInitialized(t *testing.T) {
@@ -320,7 +329,7 @@ func TestReconcile_EtcdClusterIsInitialized(t *testing.T) {
 	// CAPI machine controller has set status.Initialized to true, after the first etcd Machine is created, and after creating the Secret containing etcd init address
 	etcdadmCluster.Status.Initialized = true
 	// the etcdadm controller does not know yet that CAPI machine controller has set status.Initialized to true; InitializedCondition is still false
-	conditions.MarkFalse(etcdadmCluster, etcdv1.InitializedCondition, etcdv1.WaitingForEtcdadmInitReason, clusterv1.ConditionSeverityInfo, "")
+	v1beta1conditions.MarkFalse(etcdadmCluster, etcdv1.InitializedCondition, etcdv1.WaitingForEtcdadmInitReason, clusterv1beta1.ConditionSeverityInfo, "")
 	machine := newEtcdMachine(etcdadmCluster, cluster)
 
 	objects := []client.Object{
@@ -345,7 +354,7 @@ func TestReconcile_EtcdClusterIsInitialized(t *testing.T) {
 
 	updatedEtcdadmCluster := &etcdv1.EtcdadmCluster{}
 	g.Expect(fakeClient.Get(ctx, util.ObjectKey(etcdadmCluster), updatedEtcdadmCluster)).To(Succeed())
-	g.Expect(conditions.IsTrue(updatedEtcdadmCluster, etcdv1.InitializedCondition)).To(BeTrue())
+	g.Expect(v1beta1conditions.IsTrue(updatedEtcdadmCluster, etcdv1.InitializedCondition)).To(BeTrue())
 }
 
 func TestReconcileScaleUpEtcdCluster(t *testing.T) {
@@ -357,7 +366,7 @@ func TestReconcileScaleUpEtcdCluster(t *testing.T) {
 	// CAPI machine controller has set status.Initialized to true, after the first etcd Machine is created, and after creating the Secret containing etcd init address
 	etcdadmCluster.Status.Initialized = true
 	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
-	conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
+	v1beta1conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
 	machine := newEtcdMachine(etcdadmCluster, cluster)
 
 	objects := []client.Object{
@@ -394,7 +403,7 @@ func TestReconcileDeleteOutdatedMachines(t *testing.T) {
 	// CAPI machine controller has set status.Initialized to true, after the first etcd Machine is created, and after creating the Secret containing etcd init address
 	etcdadmCluster.Status.Initialized = true
 	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
-	conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
+	v1beta1conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
 	ownedMachine := newEtcdMachine(etcdadmCluster, cluster)
 	notOwnedMachine := newEtcdMachine(etcdadmCluster, cluster)
 	notOwnedMachine.OwnerReferences = []metav1.OwnerReference{}
@@ -440,12 +449,12 @@ func TestReconcileNeedsRollOutEtcdCluster(t *testing.T) {
 	etcdadmCluster.Spec.Replicas = ptr.To(int32(1))
 
 	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
-	conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
+	v1beta1conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
 	machine := newEtcdMachine(etcdadmCluster, cluster)
 	machine.Spec.Bootstrap = clusterv1.Bootstrap{
-		ConfigRef: &corev1.ObjectReference{
-			Name:      testClusterName,
-			Namespace: testNamespace,
+		ConfigRef: clusterv1.ContractVersionedObjectReference{
+			Kind: "EtcdadmConfig",
+			Name: testClusterName,
 		},
 	}
 
@@ -502,7 +511,7 @@ func TestReconcileScaleEtcdClusterUpgradeDone(t *testing.T) {
 	}
 
 	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
-	conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
+	v1beta1conditions.MarkTrue(etcdadmCluster, etcdv1.InitializedCondition)
 	machine1 := newEtcdMachine(etcdadmCluster, cluster)
 	machine2 := newEtcdMachine(etcdadmCluster, cluster)
 	machine3 := newEtcdMachine(etcdadmCluster, cluster)
@@ -609,21 +618,23 @@ func newClusterWithExternalEtcd() *clusterv1.Cluster {
 			Name:      testClusterName,
 		},
 		Spec: clusterv1.ClusterSpec{
-			ManagedExternalEtcdRef: &corev1.ObjectReference{
-				Kind:       "EtcdadmCluster",
-				Namespace:  testNamespace,
-				Name:       testEtcdadmClusterName,
-				APIVersion: etcdv1.GroupVersion.String(),
+			ManagedExternalEtcdRef: clusterv1.ContractVersionedObjectReference{
+				Kind: "EtcdadmCluster",
+				Name: testEtcdadmClusterName,
 			},
-			InfrastructureRef: &corev1.ObjectReference{
-				Kind:       "InfrastructureTemplate",
-				Namespace:  testNamespace,
-				Name:       testInfrastructureTemplateName,
-				APIVersion: "infra.io/v1",
+			InfrastructureRef: clusterv1.ContractVersionedObjectReference{
+				Kind: "InfrastructureTemplate",
+				Name: testInfrastructureTemplateName,
 			},
 		},
 		Status: clusterv1.ClusterStatus{
-			InfrastructureReady: true,
+			Conditions: []metav1.Condition{
+				{
+					Type:   clusterv1.ClusterInfrastructureReadyCondition,
+					Status: metav1.ConditionTrue,
+					Reason: "Ready",
+				},
+			},
 		},
 	}
 }
@@ -676,11 +687,9 @@ func newEtcdMachine(etcdadmCluster *etcdv1.EtcdadmCluster, cluster *clusterv1.Cl
 		},
 		Spec: clusterv1.MachineSpec{
 			ClusterName: cluster.Name,
-			InfrastructureRef: corev1.ObjectReference{
-				Kind:       infraTemplate.GetKind(),
-				APIVersion: infraTemplate.GetAPIVersion(),
-				Name:       infraTemplate.GetName(),
-				Namespace:  infraTemplate.GetNamespace(),
+			InfrastructureRef: clusterv1.ContractVersionedObjectReference{
+				Kind: infraTemplate.GetKind(),
+				Name: infraTemplate.GetName(),
 			},
 		},
 	}
@@ -704,7 +713,7 @@ func setupEtcdScalingTest(t *testing.T) (*etcdadmClusterTest, client.WithWatch, 
 	etcdTest.newInitSecret()
 
 	// etcdadm controller has also registered that the status.Initialized field is true, so it has set InitializedCondition to true
-	conditions.MarkTrue(etcdTest.etcdadmCluster, etcdv1.InitializedCondition)
+	v1beta1conditions.MarkTrue(etcdTest.etcdadmCluster, etcdv1.InitializedCondition)
 
 	objects := []client.Object{
 		infraTemplate.DeepCopy(),

@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/utils/ptr"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -108,21 +108,23 @@ func (e *etcdadmClusterTest) newClusterWithExternalEtcd() *clusterv1.Cluster {
 			UID:       types.UID(uuid.New().String()),
 		},
 		Spec: clusterv1.ClusterSpec{
-			ManagedExternalEtcdRef: &corev1.ObjectReference{
-				Kind:       "EtcdadmCluster",
-				Namespace:  e.namespace,
-				Name:       e.name,
-				APIVersion: etcdv1.GroupVersion.String(),
+			ManagedExternalEtcdRef: clusterv1.ContractVersionedObjectReference{
+				Kind: "EtcdadmCluster",
+				Name: e.name,
 			},
-			InfrastructureRef: &corev1.ObjectReference{
-				Kind:       "InfrastructureTemplate",
-				Namespace:  e.namespace,
-				Name:       testInfrastructureTemplateName,
-				APIVersion: "infra.io/v1",
+			InfrastructureRef: clusterv1.ContractVersionedObjectReference{
+				Kind: "InfrastructureTemplate",
+				Name: testInfrastructureTemplateName,
 			},
 		},
 		Status: clusterv1.ClusterStatus{
-			InfrastructureReady: true,
+			Conditions: []metav1.Condition{
+				{
+					Type:   clusterv1.ClusterInfrastructureReadyCondition,
+					Status: metav1.ConditionTrue,
+					Reason: "Ready",
+				},
+			},
 		},
 	}
 }
@@ -177,11 +179,9 @@ func (e *etcdadmClusterTest) newEtcdMachine() *clusterv1.Machine {
 		},
 		Spec: clusterv1.MachineSpec{
 			ClusterName: e.cluster.Name,
-			InfrastructureRef: corev1.ObjectReference{
-				Kind:       infraTemplate.GetKind(),
-				APIVersion: infraTemplate.GetAPIVersion(),
-				Name:       infraTemplate.GetName(),
-				Namespace:  infraTemplate.GetNamespace(),
+			InfrastructureRef: clusterv1.ContractVersionedObjectReference{
+				Kind: infraTemplate.GetKind(),
+				Name: infraTemplate.GetName(),
 			},
 		},
 		Status: clusterv1.MachineStatus{

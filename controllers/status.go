@@ -8,8 +8,9 @@ import (
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -43,13 +44,13 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 	}
 
 	if readyReplicas < desiredReplicas {
-		conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleUpInProgressReason, clusterv1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
+		v1beta1conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleUpInProgressReason, clusterv1beta1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
 		ec.Status.Ready = false
 		return nil
 	}
 
 	if readyReplicas > desiredReplicas {
-		conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleDownInProgressReason, clusterv1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
+		v1beta1conditions.MarkFalse(ec, etcdv1.EtcdClusterResizeCompleted, etcdv1.EtcdScaleDownInProgressReason, clusterv1beta1.ConditionSeverityWarning, "Scaling up etcd cluster to %d replicas (actual %d)", desiredReplicas, readyReplicas)
 		ec.Status.Ready = false
 		return nil
 	}
@@ -67,11 +68,11 @@ func (r *EtcdadmClusterReconciler) updateStatus(ctx context.Context, ec *etcdv1.
 		}
 	}
 
-	conditions.MarkTrue(ec, etcdv1.EtcdClusterResizeCompleted)
+	v1beta1conditions.MarkTrue(ec, etcdv1.EtcdClusterResizeCompleted)
 
 	// etcd ready when all machines have address set
 	ec.Status.Ready = true
-	conditions.MarkTrue(ec, etcdv1.EtcdEndpointsAvailable)
+	v1beta1conditions.MarkTrue(ec, etcdv1.EtcdEndpointsAvailable)
 
 	endpoints := ownedMachines.endpoints()
 	sort.Strings(endpoints)

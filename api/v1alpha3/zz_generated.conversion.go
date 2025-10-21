@@ -28,7 +28,7 @@ import (
 	clusterapiapiv1alpha3 "github.com/aws/etcdadm-controller/internal/thirdparty/api/v1alpha3"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	apiv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	apiv1beta1 "sigs.k8s.io/cluster-api/api/core/v1beta1"
 )
 
 func init() {

@@ -7,9 +7,9 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util/collections"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -101,7 +101,7 @@ func (r *EtcdadmClusterReconciler) checkOwnedMachines(ctx context.Context, log l
 // getCurrentOwnedMachines lists all the owned machines by the etcdadm cluster.
 func (r *EtcdadmClusterReconciler) getCurrentOwnedMachines(ctx context.Context, etcdadmCluster *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) (collections.Machines, error) {
 	var client client.Reader
-	if conditions.IsFalse(etcdadmCluster, etcdv1.EtcdMachinesSpecUpToDateCondition) {
+	if v1beta1conditions.IsFalse(etcdadmCluster, etcdv1.EtcdMachinesSpecUpToDateCondition) {
 		// During upgrade with current logic, outdated machines don't get deleted right away.
 		// the controller removes their etcdadmCluster ownerRef and updates the Machine. So using uncachedClient here will fetch those changes
 		client = r.uncachedClient

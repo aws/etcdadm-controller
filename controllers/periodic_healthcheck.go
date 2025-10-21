@@ -11,11 +11,11 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
 	"sigs.k8s.io/cluster-api/util/collections"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
 )
 
 const (
@@ -71,7 +71,7 @@ func (r *EtcdadmClusterReconciler) startHealthCheck(ctx context.Context, etcdadm
 				continue
 			}
 		}
-		if conditions.IsFalse(&ec, etcdv1.EtcdCertificatesAvailableCondition) {
+		if v1beta1conditions.IsFalse(&ec, etcdv1.EtcdCertificatesAvailableCondition) {
 			log.Info("EtcdadmCluster certificates are not ready, skipping health checks")
 			continue
 		}
@@ -80,7 +80,7 @@ func (r *EtcdadmClusterReconciler) startHealthCheck(ctx context.Context, etcdadm
 			log.Info("EtcdadmCluster is not ready, skipping health checks")
 			continue
 		}
-		if conditions.IsFalse(&ec, etcdv1.EtcdMachinesSpecUpToDateCondition) {
+		if v1beta1conditions.IsFalse(&ec, etcdv1.EtcdMachinesSpecUpToDateCondition) {
 			// etcdCluster is undergoing upgrade, some machines might not be ready yet, skip periodic healthcheck
 			log.Info("EtcdadmCluster machine specs are not up to date, skipping health checks")
 			continue
