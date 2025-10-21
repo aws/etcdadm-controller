@@ -55,7 +55,7 @@ func (r *EtcdadmClusterReconciler) removeEtcdMachine(ctx context.Context, ec *et
 	if etcdClient == nil {
 		return fmt.Errorf("could not create etcd client")
 	}
-	defer etcdClient.Close()
+	defer func() { _ = etcdClient.Close() }()
 
 	return r.removeEtcdMemberAndDeleteMachine(ctx, etcdClient, peerURL, machineToDelete)
 

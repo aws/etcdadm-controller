@@ -127,7 +127,7 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 	log := r.Log.WithValues("EtcdadmCluster", klog.KObj(etcdCluster))
 
 	if etcdCluster.Spec.Replicas == nil {
-		err := fmt.Errorf("Replicas is nil")
+		err := fmt.Errorf("replicas is nil")
 		log.Error(err, "Error performing healthcheck")
 		return err
 	}
