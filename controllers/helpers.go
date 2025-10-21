@@ -15,9 +15,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apiserver/pkg/storage/names"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/controllers/external"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -73,7 +74,7 @@ func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Co
 	}
 
 	// Clone the infrastructure template
-	infraRef, err := external.CreateFromTemplate(ctx, &external.CreateFromTemplateInput{
+	infraObj, _, err := external.CreateFromTemplate(ctx, &external.CreateFromTemplateInput{
 		Client:      r.Client,
 		TemplateRef: &ec.Spec.InfrastructureTemplate,
 		Namespace:   ec.Namespace,
@@ -84,8 +85,19 @@ func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Co
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("error cloning infrastructure template for etcd machine: %v", err)
 	}
-	if infraRef == nil {
+	if infraObj == nil {
 		return ctrl.Result{}, fmt.Errorf("infrastructure template could not be cloned for etcd machine")
+	}
+
+	// Convert unstructured object to ContractVersionedObjectReference
+	gv, err := schema.ParseGroupVersion(infraObj.GetAPIVersion())
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to parse infrastructure object API version: %v", err)
+	}
+	infraRef := clusterv1.ContractVersionedObjectReference{
+		Kind:     infraObj.GetKind(),
+		Name:     infraObj.GetName(),
+		APIGroup: gv.Group,
 	}
 
 	bootstrapRef, err := r.generateEtcdadmConfig(ctx, ec, cluster)
@@ -100,7 +112,7 @@ func (r *EtcdadmClusterReconciler) cloneConfigsAndGenerateMachine(ctx context.Co
 	return ctrl.Result{}, nil
 }
 
-func (r *EtcdadmClusterReconciler) generateEtcdadmConfig(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) (*corev1.ObjectReference, error) {
+func (r *EtcdadmClusterReconciler) generateEtcdadmConfig(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster) (clusterv1.ContractVersionedObjectReference, error) {
 	owner := metav1.OwnerReference{
 		APIVersion: etcdv1.GroupVersion.String(),
 		Kind:       "EtcdadmCluster",
@@ -116,22 +128,26 @@ func (r *EtcdadmClusterReconciler) generateEtcdadmConfig(ctx context.Context, ec
 		},
 		Spec: ec.Spec.EtcdadmConfigSpec,
 	}
-	bootstrapRef := &corev1.ObjectReference{
-		APIVersion: etcdbootstrapv1.GroupVersion.String(),
-		Kind:       "EtcdadmConfig",
-		Name:       bootstrapConfig.GetName(),
-		Namespace:  bootstrapConfig.GetNamespace(),
-		UID:        bootstrapConfig.GetUID(),
-	}
 
 	if err := r.Client.Create(ctx, bootstrapConfig); err != nil {
-		return nil, errors.Wrap(err, "Failed to create etcdadm bootstrap configuration")
+		return clusterv1.ContractVersionedObjectReference{}, errors.Wrap(err, "Failed to create etcdadm bootstrap configuration")
+	}
+
+	bootstrapRef := clusterv1.ContractVersionedObjectReference{
+		Kind:     "EtcdadmConfig",
+		Name:     bootstrapConfig.GetName(),
+		APIGroup: etcdbootstrapv1.GroupVersion.Group,
 	}
 
 	return bootstrapRef, nil
 }
 
-func (r *EtcdadmClusterReconciler) generateMachine(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, infraRef, bootstrapRef *corev1.ObjectReference, failureDomain *string) error {
+func (r *EtcdadmClusterReconciler) generateMachine(ctx context.Context, ec *etcdv1.EtcdadmCluster, cluster *clusterv1.Cluster, infraRef clusterv1.ContractVersionedObjectReference, bootstrapRef clusterv1.ContractVersionedObjectReference, failureDomain *string) error {
+	var failureDomainStr string
+	if failureDomain != nil {
+		failureDomainStr = *failureDomain
+	}
+
 	machine := &clusterv1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      names.SimpleNameGenerator.GenerateName(ec.Name + "-"),
@@ -143,11 +159,11 @@ func (r *EtcdadmClusterReconciler) generateMachine(ctx context.Context, ec *etcd
 		},
 		Spec: clusterv1.MachineSpec{
 			ClusterName:       cluster.Name,
-			InfrastructureRef: *infraRef,
+			InfrastructureRef: infraRef,
 			Bootstrap: clusterv1.Bootstrap{
 				ConfigRef: bootstrapRef,
 			},
-			FailureDomain: failureDomain,
+			FailureDomain: failureDomainStr,
 		},
 	}
 	if err := r.Client.Create(ctx, machine); err != nil {
@@ -236,7 +252,7 @@ func (r *EtcdadmClusterReconciler) reconcileExternalReference(ctx context.Contex
 		return nil
 	}
 
-	obj, err := external.Get(ctx, r.Client, &ref, cluster.Namespace)
+	obj, err := external.Get(ctx, r.Client, &ref)
 	if err != nil {
 		return err
 	}

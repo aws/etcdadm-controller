@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	etcdv1 "github.com/aws/etcdadm-controller/api/v1beta1"
-	"sigs.k8s.io/cluster-api/util/conditions"
+	v1beta1conditions "sigs.k8s.io/cluster-api/util/deprecated/v1beta1/conditions"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -57,7 +57,7 @@ func TestUpdateStatusResizeIncomplete(t *testing.T) {
 
 	err := r.updateStatus(ctx, etcdadmCluster, cluster, ownedMachines)
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(conditions.IsTrue(etcdadmCluster, etcdv1.EtcdClusterResizeCompleted)).To(BeFalse())
+	g.Expect(v1beta1conditions.IsTrue(etcdadmCluster, etcdv1.EtcdClusterResizeCompleted)).To(BeFalse())
 }
 
 func TestUpdateStatusMachineUnhealthy(t *testing.T) {
@@ -106,7 +106,7 @@ func TestUpdateStatusMachineUnhealthy(t *testing.T) {
 	err := r.updateStatus(ctx, etcdadmCluster, cluster, ownedMachines)
 	g.Expect(etcdadmCluster.Status.ReadyReplicas).To(Equal(int32(1)))
 	g.Expect(err).NotTo(HaveOccurred())
-	g.Expect(conditions.IsTrue(etcdadmCluster, etcdv1.EtcdClusterResizeCompleted)).To(BeFalse())
+	g.Expect(v1beta1conditions.IsTrue(etcdadmCluster, etcdv1.EtcdClusterResizeCompleted)).To(BeFalse())
 }
 
 func TestUpdateStatusResizeComplete(t *testing.T) {
@@ -165,5 +165,5 @@ func TestUpdateStatusResizeComplete(t *testing.T) {
 	// Init secret not defined, so error will occur. This test checks that the resizeComplete condition is properly set
 	// which happens before the updating init secret stage of updateStatus.
 	g.Expect(err).To(HaveOccurred())
-	g.Expect(conditions.IsTrue(etcdadmCluster, etcdv1.EtcdClusterResizeCompleted)).To(BeTrue())
+	g.Expect(v1beta1conditions.IsTrue(etcdadmCluster, etcdv1.EtcdClusterResizeCompleted)).To(BeTrue())
 }

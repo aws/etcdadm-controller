@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 )
 
 const (
@@ -63,7 +63,7 @@ func (r *EtcdadmClusterReconciler) performEndpointHealthCheck(ctx context.Contex
 		return errors.Wrap(err, "error checking etcd member health")
 	}
 	// reuse connection
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return errors.Wrap(err, "Etcd member not ready, retry")
@@ -136,7 +136,7 @@ func isPortOpen(ctx context.Context, endpoint string) bool {
 	}
 
 	if conn != nil {
-		conn.Close()
+		_ = conn.Close()
 		return true
 	}
 
