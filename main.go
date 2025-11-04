@@ -25,14 +25,15 @@ import (
 	"time"
 
 	etcdbp "github.com/aws/etcdadm-bootstrap-provider/api/v1beta1"
+	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
+	capiflags "sigs.k8s.io/cluster-api/util/flags"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	etcdclusterv1alpha3 "github.com/aws/etcdadm-controller/api/v1alpha3"
 	etcdclusterv1beta1 "github.com/aws/etcdadm-controller/api/v1beta1"
@@ -41,9 +42,11 @@ import (
 )
 
 var (
-	scheme         = runtime.NewScheme()
-	setupLog       = ctrl.Log.WithName("setup")
-	watchNamespace string
+	scheme               = runtime.NewScheme()
+	setupLog             = ctrl.Log.WithName("setup")
+	watchNamespace       string
+	managerOptions       capiflags.ManagerOptions
+	enableLeaderElection bool
 )
 
 func init() {
@@ -56,28 +59,35 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
+// +kubebuilder:rbac:groups=authentication.k8s.io,resources=tokenreviews,verbs=create
+// +kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
 	var maxConcurrentReconciles int
 	var healthcheckInterval int
-	flag.StringVar(&metricsAddr, "metrics-addr", "localhost:8080", "The address the metric endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
+
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	capiflags.AddManagerOptions(pflag.CommandLine, &managerOptions)
+
+	pflag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&watchNamespace, "namespace", "",
+	pflag.StringVar(&watchNamespace, "namespace", "",
 		"Namespace that the controller watches to reconcile etcdadmCluster objects. If unspecified, the controller watches for objects across all namespaces.")
-	flag.IntVar(&maxConcurrentReconciles, "max-concurrent-reconciles", 10, "The maximum number of concurrent etcdadm-controller reconciles.")
-	flag.IntVar(&healthcheckInterval, "healthcheck-interval", 30, "The time interval between each healthcheck loop in seconds.")
-	flag.Parse()
+	pflag.IntVar(&maxConcurrentReconciles, "max-concurrent-reconciles", 10, "The maximum number of concurrent etcdadm-controller reconciles.")
+	pflag.IntVar(&healthcheckInterval, "healthcheck-interval", 30, "The time interval between each healthcheck loop in seconds.")
+	pflag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
+	_, metricsServerOpts, err := capiflags.GetManagerOptions(managerOptions)
+	if err != nil {
+		setupLog.Error(err, "Unable to start manager: invalid metrics server flags")
+		os.Exit(1)
+	}
+
 	opts := ctrl.Options{
-		Scheme: scheme,
-		Metrics: server.Options{
-			BindAddress: metricsAddr,
-		},
+		Scheme:           scheme,
+		Metrics:          *metricsServerOpts,
 		LeaderElection:   enableLeaderElection,
 		LeaderElectionID: "cc88008e.cluster.x-k8s.io",
 	}

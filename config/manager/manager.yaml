@@ -33,8 +33,14 @@ spec:
         - /manager
         args:
         - --enable-leader-election
+        - --diagnostics-address=:8443
+        - --insecure-diagnostics=false
         image: ${ETCDADM_CONTROLLER_IMAGE}
         name: manager
+        ports:
+        - containerPort: 8443
+          name: metrics
+          protocol: TCP
         resources:
           limits:
             cpu: 200m
