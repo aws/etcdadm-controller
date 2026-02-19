@@ -108,7 +108,7 @@ func (e *etcdadmClusterTest) newClusterWithExternalEtcd() *clusterv1.Cluster {
 			UID:       types.UID(uuid.New().String()),
 		},
 		Spec: clusterv1.ClusterSpec{
-			ManagedExternalEtcdRef: clusterv1.ContractVersionedObjectReference{
+			ManagedExternalEtcdRef: &clusterv1.ContractVersionedObjectReference{
 				Kind: "EtcdadmCluster",
 				Name: e.name,
 			},

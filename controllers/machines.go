@@ -112,7 +112,7 @@ func (r *EtcdadmClusterReconciler) getCurrentOwnedMachines(ctx context.Context, 
 	if err != nil {
 		return nil, errors.Wrap(err, "reading machines for etcd cluster")
 	}
-	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdadmCluster))
+	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdadmCluster, etcdv1.GroupVersion.WithKind("EtcdadmCluster").GroupKind()))
 
 	return ownedMachines, nil
 }

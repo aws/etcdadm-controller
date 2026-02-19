@@ -50,18 +50,23 @@ func (mr *MockEtcdClientMockRecorder) Close() *gomock.Call {
 }
 
 // MemberList mocks base method.
-func (m *MockEtcdClient) MemberList(ctx context.Context) (*clientv3.MemberListResponse, error) {
+func (m *MockEtcdClient) MemberList(ctx context.Context, opts ...clientv3.OpOption) (*clientv3.MemberListResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MemberList", ctx)
+	varargs := []interface{}{ctx}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "MemberList", varargs...)
 	ret0, _ := ret[0].(*clientv3.MemberListResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // MemberList indicates an expected call of MemberList.
-func (mr *MockEtcdClientMockRecorder) MemberList(ctx interface{}) *gomock.Call {
+func (mr *MockEtcdClientMockRecorder) MemberList(ctx interface{}, opts ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MemberList", reflect.TypeOf((*MockEtcdClient)(nil).MemberList), ctx)
+	varargs := append([]interface{}{ctx}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MemberList", reflect.TypeOf((*MockEtcdClient)(nil).MemberList), varargs...)
 }
 
 // MemberRemove mocks base method.

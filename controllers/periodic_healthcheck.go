@@ -137,7 +137,7 @@ func (r *EtcdadmClusterReconciler) periodicEtcdMembersHealthCheck(ctx context.Co
 	if err != nil {
 		log.Error(err, "Error filtering machines for etcd cluster")
 	}
-	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster))
+	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdadmCluster").GroupKind()))
 
 	currClusterHFConfig := etcdadmClusterMapper[etcdCluster.UID]
 	if len(etcdMachines) == 0 {
@@ -248,5 +248,5 @@ func (r *EtcdadmClusterReconciler) getOwnedMachines(ctx context.Context, cluster
 		r.Log.Error(err, "Error filtering machines for etcd cluster")
 	}
 
-	return etcdMachines.Filter(collections.OwnedMachines(&ec))
+	return etcdMachines.Filter(collections.OwnedMachines(&ec, etcdv1.GroupVersion.WithKind("EtcdadmCluster").GroupKind()))
 }

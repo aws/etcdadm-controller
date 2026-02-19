@@ -68,7 +68,7 @@ type EtcdadmClusterReconciler struct {
 // This interface is needed to so the ETCD API calls can be mocked for unit tests.
 type EtcdClient interface {
 	// MemberList lists the current cluster membership.
-	MemberList(ctx context.Context) (*clientv3.MemberListResponse, error)
+	MemberList(ctx context.Context, opts ...clientv3.OpOption) (*clientv3.MemberListResponse, error)
 	// MemberRemove removes an existing member from the cluster.
 	MemberRemove(ctx context.Context, id uint64) (*clientv3.MemberRemoveResponse, error)
 	// Close closes the EtcdClient session and cancels all watch requests.
@@ -254,7 +254,7 @@ func (r *EtcdadmClusterReconciler) reconcile(ctx context.Context, etcdCluster *e
 		return ctrl.Result{}, errors.Wrap(err, "Error filtering machines for etcd cluster")
 	}
 
-	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster))
+	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdadmCluster").GroupKind()))
 
 	ep, err := NewEtcdPlane(ctx, r.Client, cluster, etcdCluster, ownedMachines)
 	if err != nil {
@@ -426,7 +426,7 @@ func (r *EtcdadmClusterReconciler) reconcileDelete(ctx context.Context, etcdClus
 		return ctrl.Result{}, nil
 	}
 
-	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster))
+	ownedMachines := etcdMachines.Filter(collections.OwnedMachines(etcdCluster, etcdv1.GroupVersion.WithKind("EtcdadmCluster").GroupKind()))
 
 	// This aggregates the state of all machines
 	// TODO: Fix SetAggregate call with proper condition getters type compatibility
