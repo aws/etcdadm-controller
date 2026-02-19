@@ -82,8 +82,11 @@ func (r *EtcdadmClusterReconciler) generateEtcdClient(ctx context.Context, clust
 			Certificates: []tls.Certificate{clientCert},
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
 
-	return etcdClient, err
+	return etcdClient, nil
 }
 
 func (r *EtcdadmClusterReconciler) removeEtcdMemberAndDeleteMachine(ctx context.Context, etcdClient EtcdClient, peerURL string, machineToDelete *clusterv1.Machine) error {

@@ -618,7 +618,7 @@ func newClusterWithExternalEtcd() *clusterv1.Cluster {
 			Name:      testClusterName,
 		},
 		Spec: clusterv1.ClusterSpec{
-			ManagedExternalEtcdRef: clusterv1.ContractVersionedObjectReference{
+			ManagedExternalEtcdRef: &clusterv1.ContractVersionedObjectReference{
 				Kind: "EtcdadmCluster",
 				Name: testEtcdadmClusterName,
 			},
