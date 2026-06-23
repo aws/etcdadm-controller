@@ -251,8 +251,8 @@ github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/peirulu/cluster-api v0.1.0 h1:p3KZ44MFLzjCgkZInthZg7E3bfLvLLGT7g4sNLxaJAE=
 github.com/peirulu/cluster-api v0.1.0/go.mod h1:h7cyiUh+N7sIBkSerqU8cDkYMtRlXVO1c5RoJE1p5+g=
-github.com/peirulu/etcdadm-bootstrap-provider v0.0.0-20260623191719-5c4533c322a5 h1:z42hYecr/EiXfgHo7FdgrnyW2JcMNTZgGVPqX0/1gdY=
-github.com/peirulu/etcdadm-bootstrap-provider v0.0.0-20260623191719-5c4533c322a5/go.mod h1:ozoDyyeFtnRHmPACc1ouT+5DRPH5rN+Jr6gl6LJBjX8=
+github.com/peirulu/etcdadm-bootstrap-provider v0.0.0-20260623215941-17ba457c4f72 h1:IvbQiNcEq9beZOqTcXMcDyEx/s+W1m32kLpyKzRUzCc=
+github.com/peirulu/etcdadm-bootstrap-provider v0.0.0-20260623215941-17ba457c4f72/go.mod h1:ozoDyyeFtnRHmPACc1ouT+5DRPH5rN+Jr6gl6LJBjX8=
 github.com/peterbourgon/diskv v2.0.1+incompatible/go.mod h1:uqqh8zWWbv1HBMNONnaR/tNboyR3/BZd58JJSHlUSCU=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=

@@ -119,6 +119,6 @@ require (
 )
 
 replace (
-	github.com/aws/etcdadm-bootstrap-provider => github.com/peirulu/etcdadm-bootstrap-provider v0.0.0-20260623191719-5c4533c322a5
+	github.com/aws/etcdadm-bootstrap-provider => github.com/peirulu/etcdadm-bootstrap-provider v0.0.0-20260623215941-17ba457c4f72
 	sigs.k8s.io/cluster-api => github.com/peirulu/cluster-api v0.1.0
 )
