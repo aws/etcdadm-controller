@@ -80,8 +80,8 @@ func TestValidateCreate(t *testing.T) {
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
 			g := NewWithT(t)
-			webhook := &EtcdadmCluster{}
-			_, err := webhook.ValidateCreate(context.Background(), tt.in)
+			validator := &EtcdadmClusterValidator{}
+			_, err := validator.ValidateCreate(context.Background(), tt.in)
 			if tt.expectErr == "" {
 				g.Expect(err).To(BeNil())
 			} else {
@@ -145,8 +145,8 @@ func TestValidateUpdate(t *testing.T) {
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
 			g := NewWithT(t)
-			webhook := &EtcdadmCluster{}
-			_, err := webhook.ValidateUpdate(context.Background(), tt.oldConf, tt.newConf)
+			validator := &EtcdadmClusterValidator{}
+			_, err := validator.ValidateUpdate(context.Background(), tt.oldConf, tt.newConf)
 			if tt.expectErr != "" {
 				g.Expect(err).To(MatchError(ContainSubstring(tt.expectErr)))
 			} else {
