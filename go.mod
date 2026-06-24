@@ -3,7 +3,7 @@ module github.com/aws/etcdadm-controller
 go 1.25.0
 
 require (
-	github.com/aws/etcdadm-bootstrap-provider v1.0.19
+	github.com/aws/etcdadm-bootstrap-provider v1.0.20
 	github.com/go-logr/logr v1.4.3
 	github.com/golang/mock v1.4.4
 	github.com/google/uuid v1.6.0
@@ -118,7 +118,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace (
-	github.com/aws/etcdadm-bootstrap-provider => github.com/aws/etcdadm-bootstrap-provider v0.0.0-20260624185639-8dddbb5a3758
-	sigs.k8s.io/cluster-api => github.com/peirulu/cluster-api v0.1.0
-)
+replace sigs.k8s.io/cluster-api => github.com/peirulu/cluster-api v0.1.0
