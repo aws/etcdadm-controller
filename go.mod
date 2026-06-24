@@ -20,7 +20,7 @@ require (
 	k8s.io/client-go v0.35.4
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
-	sigs.k8s.io/cluster-api v1.12.1
+	sigs.k8s.io/cluster-api v1.13.2
 	sigs.k8s.io/controller-runtime v0.23.3
 	sigs.k8s.io/etcdadm v0.1.5
 )
@@ -119,6 +119,6 @@ require (
 )
 
 replace (
-	github.com/aws/etcdadm-bootstrap-provider => github.com/peirulu/etcdadm-bootstrap-provider v0.0.0-20260623215941-17ba457c4f72
+	github.com/aws/etcdadm-bootstrap-provider => github.com/aws/etcdadm-bootstrap-provider v0.0.0-20260624185639-8dddbb5a3758
 	sigs.k8s.io/cluster-api => github.com/peirulu/cluster-api v0.1.0
 )
